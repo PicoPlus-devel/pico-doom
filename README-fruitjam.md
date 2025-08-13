@@ -2,12 +2,12 @@
 
  * `git submodule update --init`
  * `sh fruitjam_build.sh`
- * `picotool uf2 convert doom1.whx -t bin doom1-whx-for-fruitjam.uf2 -o 0x10080000 --family data`
 
-You will get binary files including `build_fruitjam/src/doom_tiny.uf2`.
-
-Copy the uf2s (I copied `doom1-whx-for-fruitjam.uf2` first then `build_fruitjam/src/doom_tiny.uf2`) to fruit jam.
+You will get binary files including `build_fruitjam/src/doom_tiny.uf2`. and `build_fruitjam/src/doom1-whx-for-fruitjam.uf2`.
+Copy those two uf2s to fruit jam.
 You may need to re-enter the bootloader after copying the first file.
+
+Note: When generating your own whx files, fruit jam ALWAYS uses the offset of 0x10080000.
 
 You should get:
  * Debug UART output on pin "A4"
