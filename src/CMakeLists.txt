@@ -502,7 +502,7 @@ function(add_doom_tiny SUFFIX RENDER_LIB)
         # SDK minimilization
         PICO_TIME_DEFAULT_ALARM_POOL_DISABLED=1
         PICO_TIME_DEFAULT_ALARM_POOL_MAX_TIMERS=1
-        PICO_DISABLE_SHARED_IRQ_HANDLERS=1
+        # Incompatible with newest sdk: PICO_DISABLE_SHARED_IRQ_HANDLERS=1 https://github.com/raspberrypi/pico-sdk/issues/2626
         PICO_USE_OPTIMISTIC_SBRK=1
 
         # MUSIC

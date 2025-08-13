@@ -4,6 +4,9 @@
 #define PICO_SCANVIDEO_PIXEL_RCOUNT 1
 #define PICO_SCANVIDEO_PIXEL_GCOUNT 1
 #define PICO_SCANVIDEO_PIXEL_BCOUNT 1
+#define PICO_SCANVIDEO_PIXEL_RSHIFT 0
+#define PICO_SCANVIDEO_PIXEL_GSHIFT 1
+#define PICO_SCANVIDEO_PIXEL_BSHIFT 2
 #define PICO_SCANVIDEO_SYNC_PIN_BASE 6
 #define USE_HSTX 1
 #define SD_TX 35
@@ -21,4 +24,10 @@
 #define HSTX_D1P 15
 #define HSTX_D2P 17
 #define SD_MHZ 16
+
+// Move the WAD base address way up since we have plenty of flash
+// Original builds were as low as 0x10040000, this gives an extra 256kB for code since we're chunky
+#undef TINY_WAD_ADDR
+#define TINY_WAD_ADDR 0x10080000
+
 #endif
