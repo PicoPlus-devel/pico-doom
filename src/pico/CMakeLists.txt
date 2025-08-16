@@ -38,8 +38,21 @@ target_compile_definitions(common_pico INTERFACE
         PICO_USE_STACK_GUARDS=0 # todo we can actually use these sensibly, but right now we do overflow!
 )
 
-pico_generate_pio_header(common_pico ${CMAKE_CURRENT_LIST_DIR}/video_doom.pio)
-target_link_libraries(common_pico INTERFACE pico_stdlib pico_multicore pico_scanvideo_dpi)
+target_link_libraries(common_pico INTERFACE pico_stdlib pico_multicore)
+
+if (USE_HSTX)
+    set(PIMORONI_PICO_PATH ${CMAKE_CURRENT_LIST_DIR}/../../3rdparty/pimoroni-pico)
+    target_sources(common_pico INTERFACE
+            ${CMAKE_CURRENT_LIST_DIR}/dvhstx_shim.cpp)
+    include(${PIMORONI_PICO_PATH}/pimoroni_pico_import.cmake)
+    include(${CMAKE_CURRENT_LIST_DIR}/../../3rdparty/dvhstx/drivers/dvhstx/dvhstx.cmake)
+    target_link_libraries(common_pico INTERFACE dvhstx)
+    target_compile_definitions(common_pico INTERFACE USE_HSTX=1)
+else()
+    pico_generate_pio_header(common_pico ${CMAKE_CURRENT_LIST_DIR}/video_doom.pio)
+    target_link_libraries(common_pico INTERFACE pico_scanvideo_dpi)
+    target_compile_definitions(common_pico INTERFACE USE_HSTX=0)
+endif()
 
 add_library(pico_cd INTERFACE)
 if (TARGET tinyusb_host)

@@ -90,7 +90,7 @@ static wad_file_t *W_Memory_OpenFile(const char *path)
     }
 #endif
 #endif
-    return &fileo;
+    return (wad_file_t *)&fileo;
 }
 
 static void W_Memory_CloseFile(wad_file_t *wad)

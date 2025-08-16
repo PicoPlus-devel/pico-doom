@@ -43,22 +43,36 @@
 #include "w_wad.h"
 #include "z_zone.h"
 
+#if USE_HSTX
+#if !PICO_ON_DEVICE
+#error Do not set USE_HSTX when !ON_DEVICE (only scanvideo is implemented)
+#endif
+#else
 #include "pico/scanvideo.h"
 #include "pico/scanvideo/composable_scanline.h"
+#endif
 #include "pico/multicore.h"
 #include "pico/sync.h"
 #include "pico/time.h"
 #include "hardware/gpio.h"
 #include "picodoom.h"
-#include "video_doom.pio.h"
 #include "image_decoder.h"
 #if PICO_ON_DEVICE
 #include "hardware/dma.h"
 #include "hardware/structs/xip_ctrl.h"
 #endif
 
-#define YELLOW_SUBMARINE 0
+#if USE_HSTX
+#include "dvhstx_shim.h"
+#undef SUPPORT_TEXT
+#define SUPPORT_TEXT 0
+#define PICO_SCANVIDEO_PIXEL_FROM_RGB8(r,g,b) (((r) << 16) | ((g) << 8) | (b))
+#else
+#include "video_doom.pio.h"
 #define SUPPORT_TEXT 1
+#endif
+
+#define YELLOW_SUBMARINE 0
 #if SUPPORT_TEXT
 typedef struct __packed {
     const char * const name;
@@ -91,7 +105,7 @@ static uint16_t ega_colors[] = {
 
 // todo temproarly turned this off because it causes a seeming bug in scanvideo (perhaps only with the new callback stuff) where the last repeated scanline of a pixel line is freed while shown
 //  note it may just be that this happens anyway, but usually we are writing slower than the beam?
-#define USE_INTERP PICO_ON_DEVICE
+#define USE_INTERP PICO_ON_DEVICE && !USE_HSTX
 #if USE_INTERP
 #include "hardware/interp.h"
 #endif
@@ -141,6 +155,7 @@ static uint32_t *text_scanline_buffer_start;
 static uint8_t *text_screen_cpy;
 static uint8_t *text_font_cpy;
 
+#if !USE_HSTX
 #if USE_1280x1024x60
 //static uint32_t missing_scanline_data[] = {
 //        video_doom_offset_raw_1p | (0 << 16u),
@@ -266,6 +281,7 @@ static inline void interp_restore_static(interp_hw_t *interp, interp_hw_save_t *
     interp->ctrl[0] = saver->ctrl[0];
     interp->ctrl[1] = saver->ctrl[1];
 }
+#endif
 #endif
 
 void I_ShutdownGraphics(void)
@@ -980,6 +996,56 @@ void __no_inline_not_in_flash_func(new_frame_stuff)() {
     }
 }
 
+
+#if USE_HSTX
+void __scratch_x("scanlines") gen_line(void *cb_data, int scanline, uint32_t *dest) {
+    if(scanline == 0) {
+        new_frame_stuff();
+    }
+
+    DEBUG_PINS_SET(scanline_copy, 1);
+    if (display_video_type != VIDEO_TYPE_TEXT) {
+        scanline_funcs[display_video_type](dest, scanline);
+        if (display_video_type >= FIRST_VIDEO_TYPE_WITH_OVERLAYS) {
+            assert(scanline < count_of(vpatchlists->vpatch_starters));
+            int prev = 0;
+            for (int vp = vpatchlists->vpatch_starters[scanline]; vp;) {
+                int next = vpatchlists->vpatch_next[vp];
+                while (vpatchlists->vpatch_next[prev] && vpatchlists->vpatch_next[prev] < vp) {
+                    prev = vpatchlists->vpatch_next[prev];
+                }
+                assert(prev != vp);
+                assert(vpatchlists->vpatch_next[prev] != vp);
+                vpatchlists->vpatch_next[vp] = vpatchlists->vpatch_next[prev];
+                vpatchlists->vpatch_next[prev] = vp;
+                prev = vp;
+                vp = next;
+            }
+            vpatchlist_t *overlays = vpatchlists->overlays[display_overlay_index];
+            prev = 0;
+            for (int vp = vpatchlists->vpatch_next[prev]; vp; vp = vpatchlists->vpatch_next[prev]) {
+                patch_t *patch = resolve_vpatch_handle(overlays[vp].entry.patch_handle);
+                int yoff = scanline - overlays[vp].entry.y;
+                if (yoff < vpatch_height(patch)) {
+                    vpatchlists->vpatch_doff[vp] = draw_vpatch((uint16_t*)(dest), patch, &overlays[vp],
+                                                               vpatchlists->vpatch_doff[vp]);
+                    prev = vp;
+                } else {
+                    vpatchlists->vpatch_next[prev] = vpatchlists->vpatch_next[vp];
+                }
+            }
+        }
+    } else {
+#if 0 // SUPPORT_TEXT doesn't work with dvhstx
+        render_text_mode_scanline(buffer, scanline);
+#else
+        memset(dest, 0, SCREENWIDTH * 2);
+#endif
+    }
+    DEBUG_PINS_CLR(scanline_copy, 1);
+}
+
+#else
 void __scratch_x("scanlines") fill_scanlines() {
 #if SUPPORT_TEXT
     struct scanvideo_scanline_buffer *buffer = scanvideo_begin_scanline_generation_linked(display_video_type == VIDEO_TYPE_TEXT ? 2 : 1, false);
@@ -1069,6 +1135,7 @@ void __scratch_x("scanlines") fill_scanlines() {
     }
 #endif
 }
+#endif
 #pragma GCC pop_options
 
 #if PICO_ON_DEVICE
@@ -1088,6 +1155,9 @@ static void __not_in_flash_func(free_buffer_callback)() {
 
 //static semaphore_t init_sem;
 static void core1() {
+#if USE_HSTX
+    hstx_setup(gen_line);
+#else
 #if !PICO_ON_DEVICE
     void simulate_video_pio_video_doom(const uint32_t *dma_data, uint32_t dma_data_size,
                                        uint16_t *pixel_buffer, int32_t max_pixels, int32_t expected_width, bool overlay);
@@ -1113,6 +1183,7 @@ static void core1() {
         fill_scanlines();
 #endif
     }
+#endif
 }
 
 #if PICO_RP2350
@@ -1386,6 +1457,7 @@ void I_DisplayFPSDots(boolean dots_on)
 {
 }
 
+#if !USE_HSTX
 #if PICO_ON_DEVICE
 bool video_doom_adapt_for_mode(const struct scanvideo_pio_program *program, const struct scanvideo_mode *mode,
                                struct scanvideo_scanline_buffer *missing_scanvideo_scanline_buffer, uint16_t *modifiable_instructions) {
@@ -1515,6 +1587,7 @@ void simulate_video_pio_video_doom(const uint32_t *dma_data, uint32_t dma_data_s
 #endif
     assert(last_was_black);
 }
+#endif
 #endif
 
 #endif
