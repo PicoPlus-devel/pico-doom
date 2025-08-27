@@ -1153,10 +1153,23 @@ static void __not_in_flash_func(free_buffer_callback)() {
 }
 #endif
 
+#if USE_HSTX
+#include "hardware/structs/hstx_ctrl.h"
+#include "hardware/structs/hstx_fifo.h"
+#endif
+
+volatile dma_hw_t *the_hw;  volatile dma_debug_hw_t *the_dbg; 
+volatile hstx_ctrl_hw_t *the_ctrl;
+volatile hstx_fifo_hw_t *the_fifo;
 //static semaphore_t init_sem;
 static void core1() {
 #if USE_HSTX
+    the_hw = dma_hw;
+    the_dbg = dma_debug_hw; 
+    the_ctrl = hstx_ctrl_hw;
+    the_fifo = hstx_fifo_hw;
     hstx_setup(gen_line);
+    while(true) {}
 #else
 #if !PICO_ON_DEVICE
     void simulate_video_pio_video_doom(const uint32_t *dma_data, uint32_t dma_data_size,
