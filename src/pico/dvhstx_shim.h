@@ -4,8 +4,11 @@
 extern "C" {
 #endif
 
-typedef void(*line_fun_t)(void *cb_data, int line_num, uint32_t *data); 
-void hstx_setup(line_fun_t gen_line);
+#include "dvhstx.h"
+
+void hstx_setup(void(*fn)());
+dvhstx_line_data_t *hstx_try_get_empty_line();
+void hstx_put_filled_line(dvhstx_line_data_t *line);
 
 #if defined(__cplusplus)
 }

@@ -906,7 +906,8 @@ void __noinline new_frame_init_overlays_palette_and_wipe() {
                         g = gammatable[usegamma-1][g];
                         b = gammatable[usegamma-1][b];
                     }
-                    palette[i] = PICO_SCANVIDEO_PIXEL_FROM_RGB8(r, g, b);
+#define PALSWAP(x) __builtin_bswap16(x)
+                    palette[i] = PALSWAP(PICO_SCANVIDEO_PIXEL_FROM_RGB8(r, g, b));
                 }
             } else {
                 int mul, r0, g0, b0;
@@ -928,7 +929,7 @@ void __noinline new_frame_init_overlays_palette_and_wipe() {
                     r += ((r0 - r) * mul) >> 16;
                     g += ((g0 - g) * mul) >> 16;
                     b += ((b0 - b) * mul) >> 16;
-                    palette[i] = PICO_SCANVIDEO_PIXEL_FROM_RGB8(r, g, b);
+                    palette[i] = PALSWAP(PICO_SCANVIDEO_PIXEL_FROM_RGB8(r, g, b));
                 }
             }
             next_pal = -1;
@@ -998,51 +999,73 @@ void __no_inline_not_in_flash_func(new_frame_stuff)() {
 
 
 #if USE_HSTX
-void __scratch_x("scanlines") gen_line(void *cb_data, int scanline, uint32_t *dest) {
-    if(scanline == 0) {
-        new_frame_stuff();
-    }
-
-    DEBUG_PINS_SET(scanline_copy, 1);
-    if (display_video_type != VIDEO_TYPE_TEXT) {
-        scanline_funcs[display_video_type](dest, scanline);
-        if (display_video_type >= FIRST_VIDEO_TYPE_WITH_OVERLAYS) {
-            assert(scanline < count_of(vpatchlists->vpatch_starters));
-            int prev = 0;
-            for (int vp = vpatchlists->vpatch_starters[scanline]; vp;) {
-                int next = vpatchlists->vpatch_next[vp];
-                while (vpatchlists->vpatch_next[prev] && vpatchlists->vpatch_next[prev] < vp) {
-                    prev = vpatchlists->vpatch_next[prev];
-                }
-                assert(prev != vp);
-                assert(vpatchlists->vpatch_next[prev] != vp);
-                vpatchlists->vpatch_next[vp] = vpatchlists->vpatch_next[prev];
-                vpatchlists->vpatch_next[prev] = vp;
-                prev = vp;
-                vp = next;
-            }
-            vpatchlist_t *overlays = vpatchlists->overlays[display_overlay_index];
-            prev = 0;
-            for (int vp = vpatchlists->vpatch_next[prev]; vp; vp = vpatchlists->vpatch_next[prev]) {
-                patch_t *patch = resolve_vpatch_handle(overlays[vp].entry.patch_handle);
-                int yoff = scanline - overlays[vp].entry.y;
-                if (yoff < vpatch_height(patch)) {
-                    vpatchlists->vpatch_doff[vp] = draw_vpatch((uint16_t*)(dest), patch, &overlays[vp],
-                                                               vpatchlists->vpatch_doff[vp]);
-                    prev = vp;
-                } else {
-                    vpatchlists->vpatch_next[prev] = vpatchlists->vpatch_next[vp];
-                }
-            }
-        }
-    } else {
-#if 0 // SUPPORT_TEXT doesn't work with dvhstx
-        render_text_mode_scanline(buffer, scanline);
-#else
-        memset(dest, 0, SCREENWIDTH * 2);
+#if SUPPORT_TEXT
+#error incompatible
 #endif
+void __scratch_x("scanlines") fill_scanlines() {
+    dvhstx_line_data_t *line = hstx_try_get_empty_line();
+#if USE_INTERP
+    need_save = interp_in_use;
+    interp_updated = 0;
+#endif
+
+    while (line) {
+        static int8_t last_frame_number = -1;
+        int frame = line->logical_frame_number;
+        int scanline = line->logical_line_number;
+        line->physical_end_line = line->physical_start_line + 2 + ((scanline % 5) & 1);
+        if ((int8_t) frame != last_frame_number) {
+            last_frame_number = frame;
+            new_frame_stuff();
+        }
+
+        DEBUG_PINS_SET(scanline_copy, 1);
+        if (display_video_type != VIDEO_TYPE_TEXT && scanline < SCREENHEIGHT) {
+            // we don't have text mode -> normal transition yet, but we may for network game, so leaving this here - we would need to put the buffer pointers back
+            scanline_funcs[display_video_type](line->data, scanline);
+            if (display_video_type >= FIRST_VIDEO_TYPE_WITH_OVERLAYS) {
+                assert(scanline < count_of(vpatchlists->vpatch_starters));
+                int prev = 0;
+                for (int vp = vpatchlists->vpatch_starters[scanline]; vp;) {
+                    int next = vpatchlists->vpatch_next[vp];
+                    while (vpatchlists->vpatch_next[prev] && vpatchlists->vpatch_next[prev] < vp) {
+                        prev = vpatchlists->vpatch_next[prev];
+                    }
+                    assert(prev != vp);
+                    assert(vpatchlists->vpatch_next[prev] != vp);
+                    vpatchlists->vpatch_next[vp] = vpatchlists->vpatch_next[prev];
+                    vpatchlists->vpatch_next[prev] = vp;
+                    prev = vp;
+                    vp = next;
+                }
+                vpatchlist_t *overlays = vpatchlists->overlays[display_overlay_index];
+                prev = 0;
+                for (int vp = vpatchlists->vpatch_next[prev]; vp; vp = vpatchlists->vpatch_next[prev]) {
+                    patch_t *patch = resolve_vpatch_handle(overlays[vp].entry.patch_handle);
+                    int yoff = scanline - overlays[vp].entry.y;
+                    if (yoff < vpatch_height(patch)) {
+                        vpatchlists->vpatch_doff[vp] = draw_vpatch((uint16_t*)(line->data), patch, &overlays[vp],
+                                                                   vpatchlists->vpatch_doff[vp]);
+                        prev = vp;
+                    } else {
+                        vpatchlists->vpatch_next[prev] = vpatchlists->vpatch_next[vp];
+                    }
+                }
+            }
+            DEBUG_PINS_CLR(scanline_copy, 1);
+        } else {
+            memset(line->data, 0, SCREENWIDTH * 2);
+            line->physical_end_line = 0xffff;
+        }
+        hstx_put_filled_line(line);
+        dvhstx_line_data_t *line = hstx_try_get_empty_line();
     }
-    DEBUG_PINS_CLR(scanline_copy, 1);
+#if USE_INTERP
+    if (interp_updated && need_save) {
+        interp_restore_static(interp0, &interp0_save);
+        interp_restore_static(interp1, &interp1_save);
+    }
+#endif
 }
 
 #else
@@ -1168,8 +1191,18 @@ static void core1() {
     the_dbg = dma_debug_hw; 
     the_ctrl = hstx_ctrl_hw;
     the_fifo = hstx_fifo_hw;
-    hstx_setup(gen_line);
-    while(true) {}
+    hstx_setup(NULL);
+#if 0
+    irq_set_exclusive_handler(LOW_PRIO_IRQ, fill_scanlines);
+    irq_set_enabled(LOW_PRIO_IRQ, true);
+    irq_set_pending(LOW_PRIO_IRQ); // initial fill
+#endif
+    sem_release(&core1_launch);
+    while (true) {
+        pd_core1_loop();
+        // tight_loop_contents();
+        fill_scanlines();
+    }
 #else
 #if !PICO_ON_DEVICE
     void simulate_video_pio_video_doom(const uint32_t *dma_data, uint32_t dma_data_size,
@@ -1178,19 +1211,21 @@ static void core1() {
 #endif
     scanvideo_setup(&VGA_MODE);
 //    sem_release(&init_sem);
-#if PICO_ON_DEVICE
+#if PICO_ON_DEVICE && !USE_HSTX
     irq_set_exclusive_handler(LOW_PRIO_IRQ, fill_scanlines);
     irq_set_enabled(LOW_PRIO_IRQ, true);
     scanvideo_set_scanline_release_fn(free_buffer_callback);
 #endif
+#if !USE_HSTX
     scanvideo_timing_enable(true);
-#if PICO_ON_DEVICE
+#endif
+#if PICO_ON_DEVICE && !USE_HSTX
     irq_set_pending(LOW_PRIO_IRQ);
 #endif
     sem_release(&core1_launch);
     while (true) {
         pd_core1_loop();
-#if PICO_ON_DEVICE
+#if PICO_ON_DEVICE && !USE_HSTX
         tight_loop_contents();
 #else
         fill_scanlines();

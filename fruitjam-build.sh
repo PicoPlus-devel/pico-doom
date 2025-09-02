@@ -1,8 +1,8 @@
 #!/bin/sh
 TAG=fruitjam
 BUILD=build_${TAG}
-export CFLAGS="-include $(pwd)/fruitjam_cflags.h"
-export CXXFLAGS="-include $(pwd)/fruitjam_cflags.h"
+export CFLAGS="-include $(pwd)/fruitjam_cflags.h -g3 -ggdb"
+export CXXFLAGS="-include $(pwd)/fruitjam_cflags.h -g3 -ggdb"
 cmake -S . -B $BUILD \
     -DCMAKE_BUILD_TYPE=MinSizeRel \
     -DPICO_SDK_PATH=../pico-sdk \
