@@ -33,9 +33,9 @@ extern "C" {
 // todo compare with and without
 #define USE_XIPCPY 0
 #if PICO_ON_DEVICE
-#define USE_CORE1_FOR_FLATS 1
+#define USE_CORE1_FOR_FLATS 0
 #endif
-#define USE_CORE1_FOR_REGULAR 1
+#define USE_CORE1_FOR_REGULAR 0
 #ifdef PICO_SPINLOCK_ID_OS2
 #define RENDER_SPIN_LOCK PICO_SPINLOCK_ID_OS2
 #else
@@ -771,8 +771,9 @@ void pd_begin_frame() {
 #if 0 && !PICO_ON_DEVICE
     printf("BEGIN FRAME %d rfb %p\n", render_frame_index, render_frame_buffer);
 #endif
+if(USE_CORE1_FOR_FLATS || USE_CORE1_FOR_REGULAR) {
     sem_release(&core1_wake);
-
+}
     reset_framedrawables();
 #if !PICO_ON_DEVICE
     textures.clear();
@@ -816,9 +817,11 @@ static void interp_init() {
 }
 
 void pd_init() {
-    sem_init(&core1_wake, 0, 1);
     sem_init(&core0_done, 0, 1);
+if(USE_CORE1_FOR_FLATS || USE_CORE1_FOR_REGULAR) {
+    sem_init(&core1_wake, 0, 1);
     sem_init(&core1_done, 0, 1);
+}
 #if PICO_ON_DEVICE
     static_assert(sizeof(vpatchlists_t) < 0xc00, "");
 #if !PICO_RP2350
@@ -2793,7 +2796,9 @@ void pd_end_frame(int wipe_start) {
     }
 #endif
     sem_release(&core0_done);
+if(USE_CORE1_FOR_FLATS || USE_CORE1_FOR_REGULAR) {
     sem_acquire_blocking(&core1_done);
+}
     draw_fuzz_columns();
     DEBUG_PINS_CLR(full_render, 1);
     NetUpdate();

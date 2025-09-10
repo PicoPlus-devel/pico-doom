@@ -41,10 +41,10 @@ target_compile_definitions(common_pico INTERFACE
 target_link_libraries(common_pico INTERFACE pico_stdlib pico_multicore)
 
 if (USE_HSTX)
-    target_sources(common_pico INTERFACE
-            ${CMAKE_CURRENT_LIST_DIR}/dvhstx_shim.cpp)
-    include(${CMAKE_CURRENT_LIST_DIR}/../../3rdparty/dvhstx/drivers/dvhstx/dvhstx.cmake)
-    target_link_libraries(common_pico INTERFACE dvhstx)
+    #target_sources(common_pico INTERFACE
+    #        ${CMAKE_CURRENT_LIST_DIR}/dvhstx_shim.cpp)
+    #include(${CMAKE_CURRENT_LIST_DIR}/../../3rdparty/dvhstx/drivers/dvhstx/dvhstx.cmake)
+    #target_link_libraries(common_pico INTERFACE dvhstx)
     target_compile_definitions(common_pico INTERFACE USE_HSTX=1)
 else()
     pico_generate_pio_header(common_pico ${CMAKE_CURRENT_LIST_DIR}/video_doom.pio)

@@ -44,6 +44,8 @@
 #include "z_zone.h"
 
 #if USE_HSTX
+#include "../../Framebuffer_RP2350.c"
+
 #if !PICO_ON_DEVICE
 #error Do not set USE_HSTX when !ON_DEVICE (only scanvideo is implemented)
 #endif
@@ -63,10 +65,9 @@
 #endif
 
 #if USE_HSTX
-#include "dvhstx_shim.h"
 #undef SUPPORT_TEXT
 #define SUPPORT_TEXT 0
-#define PICO_SCANVIDEO_PIXEL_FROM_RGB8(r,g,b) (((r) << 16) | ((g) << 8) | (b))
+#define PICO_SCANVIDEO_PIXEL_FROM_RGB8(r,g,b) ((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3))
 #else
 #include "video_doom.pio.h"
 #define SUPPORT_TEXT 1
@@ -105,7 +106,7 @@ static uint16_t ega_colors[] = {
 
 // todo temproarly turned this off because it causes a seeming bug in scanvideo (perhaps only with the new callback stuff) where the last repeated scanline of a pixel line is freed while shown
 //  note it may just be that this happens anyway, but usually we are writing slower than the beam?
-#define USE_INTERP PICO_ON_DEVICE && !USE_HSTX
+#define USE_INTERP PICO_ON_DEVICE
 #if USE_INTERP
 #include "hardware/interp.h"
 #endif
@@ -256,6 +257,7 @@ const scanvideo_mode_t vga_mode_320x200_60 =
 
 #define VGA_MODE vga_mode_320x200_60
 #endif
+#endif
 
 #if USE_INTERP
 static interp_hw_save_t interp0_save, interp1_save;
@@ -281,7 +283,6 @@ static inline void interp_restore_static(interp_hw_t *interp, interp_hw_save_t *
     interp->ctrl[0] = saver->ctrl[0];
     interp->ctrl[1] = saver->ctrl[1];
 }
-#endif
 #endif
 
 void I_ShutdownGraphics(void)
@@ -906,7 +907,7 @@ void __noinline new_frame_init_overlays_palette_and_wipe() {
                         g = gammatable[usegamma-1][g];
                         b = gammatable[usegamma-1][b];
                     }
-#define PALSWAP(x) __builtin_bswap16(x)
+#define PALSWAP(x) (x)
                     palette[i] = PALSWAP(PICO_SCANVIDEO_PIXEL_FROM_RGB8(r, g, b));
                 }
             } else {
@@ -1002,28 +1003,27 @@ void __no_inline_not_in_flash_func(new_frame_stuff)() {
 #if SUPPORT_TEXT
 #error incompatible
 #endif
-void __scratch_x("scanlines") fill_scanlines() {
-    dvhstx_line_data_t *line = hstx_try_get_empty_line();
+void __scratch_x("scanlines") fill_scanlines_hstx() {
 #if USE_INTERP
     need_save = interp_in_use;
     interp_updated = 0;
 #endif
 
-    while (line) {
-        static int8_t last_frame_number = -1;
-        int frame = line->logical_frame_number;
-        int scanline = line->logical_line_number;
-        line->physical_end_line = line->physical_start_line + 2 + ((scanline % 5) & 1);
-        if ((int8_t) frame != last_frame_number) {
-            last_frame_number = frame;
-            new_frame_stuff();
-        }
+    int8_t frame = picodvi.frameno;
+    static uint8_t last_frame_number;
+    if (frame != last_frame_number) {
+        last_frame_number = frame;
+        new_frame_stuff();
+    }
+
+    for(uint32_t scanline = 0; scanline < 200; scanline++) {
+        uint32_t *line_data = &picodvi.framebuffer[160 * scanline];
 
         DEBUG_PINS_SET(scanline_copy, 1);
-        if (display_video_type != VIDEO_TYPE_TEXT && scanline < SCREENHEIGHT) {
+        if (display_video_type != VIDEO_TYPE_TEXT) {
             // we don't have text mode -> normal transition yet, but we may for network game, so leaving this here - we would need to put the buffer pointers back
-            scanline_funcs[display_video_type](line->data, scanline);
-            if (display_video_type >= FIRST_VIDEO_TYPE_WITH_OVERLAYS) {
+            scanline_funcs[display_video_type](line_data, scanline);
+            if (0 && display_video_type >= FIRST_VIDEO_TYPE_WITH_OVERLAYS) {
                 assert(scanline < count_of(vpatchlists->vpatch_starters));
                 int prev = 0;
                 for (int vp = vpatchlists->vpatch_starters[scanline]; vp;) {
@@ -1044,7 +1044,7 @@ void __scratch_x("scanlines") fill_scanlines() {
                     patch_t *patch = resolve_vpatch_handle(overlays[vp].entry.patch_handle);
                     int yoff = scanline - overlays[vp].entry.y;
                     if (yoff < vpatch_height(patch)) {
-                        vpatchlists->vpatch_doff[vp] = draw_vpatch((uint16_t*)(line->data), patch, &overlays[vp],
+                        vpatchlists->vpatch_doff[vp] = draw_vpatch((uint16_t*)(line_data), patch, &overlays[vp],
                                                                    vpatchlists->vpatch_doff[vp]);
                         prev = vp;
                     } else {
@@ -1054,11 +1054,8 @@ void __scratch_x("scanlines") fill_scanlines() {
             }
             DEBUG_PINS_CLR(scanline_copy, 1);
         } else {
-            memset(line->data, 0, SCREENWIDTH * 2);
-            line->physical_end_line = 0xffff;
+            memset(line_data, 0x55, 320);
         }
-        hstx_put_filled_line(line);
-        dvhstx_line_data_t *line = hstx_try_get_empty_line();
     }
 #if USE_INTERP
     if (interp_updated && need_save) {
@@ -1184,6 +1181,7 @@ static void __not_in_flash_func(free_buffer_callback)() {
 volatile dma_hw_t *the_hw;  volatile dma_debug_hw_t *the_dbg; 
 volatile hstx_ctrl_hw_t *the_ctrl;
 volatile hstx_fifo_hw_t *the_fifo;
+volatile hstx_fifo_hw_t *the_irqs;
 //static semaphore_t init_sem;
 static void core1() {
 #if USE_HSTX
@@ -1191,18 +1189,18 @@ static void core1() {
     the_dbg = dma_debug_hw; 
     the_ctrl = hstx_ctrl_hw;
     the_fifo = hstx_fifo_hw;
-    hstx_setup(NULL);
-#if 0
-    irq_set_exclusive_handler(LOW_PRIO_IRQ, fill_scanlines);
-    irq_set_enabled(LOW_PRIO_IRQ, true);
-    irq_set_pending(LOW_PRIO_IRQ); // initial fill
-#endif
-    sem_release(&core1_launch);
-    while (true) {
-        pd_core1_loop();
-        // tight_loop_contents();
-        fill_scanlines();
+    
+    if (!common_hal_picodvi_framebuffer_construct(&picodvi, 320, 240, HSTX_CKP, HSTX_D0P, HSTX_D1P, HSTX_D2P, 16)) {
+        printf("dvi init failed\n");
+        abort();
     }
+    printf("dvi init complete\n");
+    // sem_release(&core1_launch);
+    while (true) {
+        fill_scanlines_hstx();
+        // pd_core1_loop(); 
+    }
+#endif
 #else
 #if !PICO_ON_DEVICE
     void simulate_video_pio_video_doom(const uint32_t *dma_data, uint32_t dma_data_size,
@@ -1636,6 +1634,4 @@ void simulate_video_pio_video_doom(const uint32_t *dma_data, uint32_t dma_data_s
     assert(last_was_black);
 }
 #endif
-#endif
-
 #endif
