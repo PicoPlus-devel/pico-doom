@@ -1195,7 +1195,7 @@ static void core1() {
         abort();
     }
     printf("dvi init complete\n");
-    // sem_release(&core1_launch);
+    sem_release(&core1_launch);
     while (true) {
         fill_scanlines_hstx();
         // pd_core1_loop(); 

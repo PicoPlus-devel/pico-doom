@@ -313,7 +313,7 @@ int main(int argc, char **argv)
 #endif
 #endif
 #if !USE_HSTX
-    // hstx is in charge of all clocking
+    // this breaks the video generation!
     vreg_set_voltage(VREG_VOLTAGE_1_30);
     busy_wait_us(1000);
     // todo pause? is this the cause of the cold start issue?
