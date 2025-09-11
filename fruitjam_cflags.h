@@ -25,6 +25,11 @@
 #define HSTX_D1P 17
 #define HSTX_D2P 19
 
+#define HAS_USBPIO
+#define PIN_USB_HOST_DP (1u)
+#define PIN_USB_HOST_DM (2u)
+#define PIN_USB_HOST_VBUS (11u)
+
 // Move the WAD base address way up since we have plenty of flash
 // Original builds were as low as 0x10040000, this gives an extra 256kB for code since we're chunky
 #undef TINY_WAD_ADDR

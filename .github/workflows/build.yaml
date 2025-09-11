@@ -26,11 +26,8 @@ jobs:
     - name: get submodules
       run: git submodule update --init
 
-    - name: get pico-sdk
-      run: git clone --depth=1 -b adafruit-fruit-jam https://github.com/adafruit/pico-sdk ../pico-sdk && (cd ../pico-sdk && git submodule update --init)
-
-    - name: get pico-extras
-      run: git clone --depth=1 https://github.com/raspberrypi/pico-extras ../pico-extras
+    - name: get pico-sdk submodules
+      run: (cd 3rdparty/pico-sdk && git submodule update --init && cd lib/tinyusb && ./tools/get_deps.py rp2040)
 
     - name: build targets
       run: |
