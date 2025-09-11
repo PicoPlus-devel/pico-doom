@@ -7,6 +7,8 @@
 [submodule "3rdparty/pico-sdk"]
 	path = 3rdparty/pico-sdk
 	url = https://github.com/raspberrypi/pico-sdk
+        # Initializing tinyusb creates untracked files
+        ignore = untracked
 [submodule "3rdparty/pico-extras"]
 	path = 3rdparty/pico-extras
 	url = https://github.com/raspberrypi/pico-extras.git
