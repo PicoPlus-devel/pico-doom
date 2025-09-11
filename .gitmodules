@@ -4,3 +4,6 @@
 [submodule "3rdparty/Pico-PIO-USB"]
 	path = 3rdparty/Pico-PIO-USB
 	url = https://github.com/sekigon-gonnoc/Pico-PIO-USB.git
+[submodule "3rdparty/pico-sdk"]
+	path = 3rdparty/pico-sdk
+	url = https://github.com/raspberrypi/pico-sdk
