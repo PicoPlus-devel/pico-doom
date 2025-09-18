@@ -33,6 +33,7 @@
 #include "hardware/structs/bus_ctrl.h"
 #include "hardware/structs/hstx_ctrl.h"
 #include "hardware/structs/hstx_fifo.h"
+#include "hardware/clocks.h"
 
 typedef struct {
     uint32_t *framebuffer;
@@ -85,7 +86,7 @@ typedef struct {
 #define MODE_640_V_SYNC_POLARITY 0
 #define MODE_640_V_FRONT_PORCH   10
 #define MODE_640_V_SYNC_WIDTH    2
-#define MODE_640_V_BACK_PORCH    133
+#define MODE_640_V_BACK_PORCH    33
 #define MODE_640_V_ACTIVE_LINES  480
 
 #define MODE_720_V_TOTAL_LINES  ( \
@@ -177,6 +178,7 @@ __asm__("nop");
     if (active_picodvi == NULL) {
         return;
     }
+
     uint ch_num = active_picodvi->dma_pixel_channel;
     dma_hw->intr = 1u << ch_num;
 
@@ -196,6 +198,12 @@ bool common_hal_picodvi_framebuffer_construct(picodvi_framebuffer_obj_t *self,
         return false;
     }
 
+    uint f_pll_sys = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_PLL_SYS_CLKSRC_PRIMARY);
+uint32_t freq = 125875000; // what is this nonsense??
+    clock_configure(clk_hstx, 0, CLOCKS_CLK_HSTX_CTRL_AUXSRC_VALUE_CLK_SYS, clock_get_hz(clk_sys), freq); 
+printf("Note: HSTX frequency=%d vs ideal 126MHz\n", (int)clock_get_hz (clk_hstx));
+printf("Note: system clock =%d\n", (int)clock_get_hz (clk_sys));
+printf("Note: system pll =%d\n", f_pll_sys);
     self->dma_command_channel = -1;
     self->dma_pixel_channel = -1;
 
