@@ -82,6 +82,8 @@
 #if PICO_BUILD
 #include "i_picosound.h"
 #if USB_SUPPORT
+#include "hardware/gpio.h" 
+#include "pio_usb_configuration.h"
 #include "tusb.h"
 #endif
 #endif
@@ -545,6 +547,26 @@ void D_DoomLoop (void)
 #endif
     I_InitGraphics();
 #if USB_SUPPORT
+
+  pio_usb_configuration_t pio_cfg = PIO_USB_DEFAULT_CONFIG;
+  _Static_assert(PIN_USB_HOST_DP + 1 == PIN_USB_HOST_DM || PIN_USB_HOST_DP - 1 == PIN_USB_HOST_DM, "Permitted USB D+/D- configuration");
+  pio_cfg.pinout = PIN_USB_HOST_DP + 1 == PIN_USB_HOST_DM ? PIO_USB_PINOUT_DPDM : PIO_USB_PINOUT_DMDP;
+  pio_cfg.pin_dp = PIN_USB_HOST_DP;
+  pio_cfg.tx_ch = 9;
+
+  #ifdef PIN_USB_HOST_VBUS
+    printf("Enabling USB host VBUS power on GP%d\r\n", PIN_USB_HOST_VBUS);
+    gpio_init(PIN_USB_HOST_VBUS);
+    gpio_set_dir(PIN_USB_HOST_VBUS, GPIO_OUT);
+    gpio_put(PIN_USB_HOST_VBUS, 1);
+  #endif
+
+  tuh_configure(CFG_TUH_RPI_PIO_USB, TUH_CFGID_RPI_PIO_USB_CONFIGURATION, &pio_cfg);
+  printf("Init USB...\n");
+  printf("USB D+/D- on GP%d and GP%d\r\n", PIN_USB_HOST_DP, PIN_USB_HOST_DM);
+  printf("TinyUSB Host HID Controller Example\r\n");
+  tuh_init(CFG_TUH_RPI_PIO_USB);
+
     printf("Sleeping 2s for USB devices\n"); // TinyUSB still grinds to a halt during connect/disconnect
     absolute_time_t end_time = make_timeout_time_ms(2000);
     do {

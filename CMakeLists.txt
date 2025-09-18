@@ -4,8 +4,8 @@ cmake_minimum_required(VERSION 3.13)
 
 # We use PICO_SDK_PATH being set as an indicator that we're doing a Pico BUILD
 if (PICO_SDK_PATH)
-    include(pico_sdk_import.cmake)
-    include(pico_extras_import.cmake)
+    include(${PICO_SDK_PATH}/pico_sdk_init.cmake)
+    add_subdirectory(${PICO_EXTRAS_PATH} pico_extras)
 endif()
 
 project("Chocolate Doom" VERSION 3.0.0 LANGUAGES C CXX)

@@ -50,5 +50,5 @@ endif()
 
 add_library(pico_cd INTERFACE)
 if (TARGET tinyusb_host)
-    target_link_libraries(pico_cd INTERFACE tinyusb_host)
+    target_link_libraries(pico_cd INTERFACE tinyusb_host tinyusb_pico_pio_usb)
 endif()
