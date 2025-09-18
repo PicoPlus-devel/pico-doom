@@ -187,42 +187,6 @@ __asm__("nop");
     ch->al3_read_addr_trig = (uintptr_t)active_picodvi->dma_commands;
 }
 
-__attribute__((optimize("O0")))
-bool common_hal_picodvi_framebuffer_preflight(
-    uint32_t width, uint32_t height,
-    uint32_t color_depth) {
-
-    // These modes don't duplicate pixels so we can do sub-byte colors. They
-    // take too much ram for more than 8bit color though.
-    bool full_resolution = color_depth == 1 || color_depth == 2 || color_depth == 4 || color_depth == 8;
-    // These modes rely on the memory transfer to duplicate values across bytes.
-    bool doubled = color_depth == 8 || color_depth == 16 || color_depth == 32;
-
-    // for each supported resolution, check the color depth is supported
-    if (width == 640 && height == 480) {
-        return full_resolution;
-    }
-    if (width == 320 && height == 240) {
-        return doubled;
-    }
-    if (width == 160 && height == 120) {
-        return doubled;
-    }
-
-    if (width == 720 && height == 400) {
-        return full_resolution;
-    }
-
-    if (width == 360 && height == 200) {
-        return doubled;
-    }
-
-    if (width == 180 && height == 100) {
-        return doubled;
-    }
-    return false;
-}
-
 bool common_hal_picodvi_framebuffer_construct(picodvi_framebuffer_obj_t *self,
     uint32_t width, uint32_t height,
     int clk_dp, int red_dp, int green_dp, int blue_dp,
@@ -232,23 +196,14 @@ bool common_hal_picodvi_framebuffer_construct(picodvi_framebuffer_obj_t *self,
         return false;
     }
 
-    if (!common_hal_picodvi_framebuffer_preflight(width, height, color_depth)) {
-        printf("invalid\n");
-        return false;
-    }
-
     self->dma_command_channel = -1;
     self->dma_pixel_channel = -1;
 
-    if (width % 160 == 0) {
-        self->output_width = 640;
-    } else {
-        self->output_width = 720;
-    }
+    self->output_width = 640;
     size_t output_scaling = self->output_width / width;
 
     self->width = width;
-    self->height = height;
+    self->height = 200;
     self->color_depth = color_depth;
     // Pitch is number of 32-bit words per line. We round up pitch_bytes to the nearest word
     // so that each scanline begins on a natural 32-bit word boundary.
@@ -394,7 +349,7 @@ bool common_hal_picodvi_framebuffer_construct(picodvi_framebuffer_obj_t *self,
             if (output_scaling > 1) {
                 self->dma_commands[command_word++] = dma_pixel_ctrl;
                 self->dma_commands[command_word++] = dma_write_addr;
-                row /= output_scaling;
+                row = row * 200 / 480;
                 // When pixel scaling, we do one transfer per pixel and it gets
                 // mirrored into the rest of the word.
                 transfer_count = self->width;
