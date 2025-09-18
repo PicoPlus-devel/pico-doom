@@ -513,7 +513,6 @@ void I_InputInit(void) {
     platform_key_up = pico_key_up;
     platform_quit = pico_quit;
 #elif USB_SUPPORT
-    tusb_init();
     irq_set_priority(USBCTRL_IRQ, 0xc0);
 #endif
 }

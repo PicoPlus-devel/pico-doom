@@ -561,11 +561,13 @@ void D_DoomLoop (void)
     gpio_put(PIN_USB_HOST_VBUS, 1);
   #endif
 
+  printf("Configure USB...\n");
+  printf("USB D+/D- on GP%d and GP%d\r\n", PIN_USB_HOST_DP, PIN_USB_HOST_DM);
   tuh_configure(CFG_TUH_RPI_PIO_USB, TUH_CFGID_RPI_PIO_USB_CONFIGURATION, &pio_cfg);
   printf("Init USB...\n");
-  printf("USB D+/D- on GP%d and GP%d\r\n", PIN_USB_HOST_DP, PIN_USB_HOST_DM);
-  printf("TinyUSB Host HID Controller Example\r\n");
-  tuh_init(CFG_TUH_RPI_PIO_USB);
+    tusb_init();
+
+  // tuh_init(CFG_TUH_RPI_PIO_USB);
 
     printf("Sleeping 2s for USB devices\n"); // TinyUSB still grinds to a halt during connect/disconnect
     absolute_time_t end_time = make_timeout_time_ms(2000);

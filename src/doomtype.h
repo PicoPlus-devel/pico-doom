@@ -197,7 +197,7 @@ typedef uint8_t floor_ceiling_clip_t;
 #if !PICO_RP2350
 #define SHORTPTR_BASE 0x20000000
 #else
-#define SHORTPTR_BASE 0x20030000
+#define SHORTPTR_BASE 0x20036000 // needs to include rando objects ugh how do you set this value
 #endif
 typedef uint16_t shortptr_t;
 static inline void *shortptr_to_ptr(shortptr_t s) {

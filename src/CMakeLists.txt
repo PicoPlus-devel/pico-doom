@@ -484,7 +484,8 @@ function(add_doom_tiny SUFFIX RENDER_LIB)
     target_link_libraries(doom_tiny${SUFFIX} PRIVATE small_doom_common)
 
     if (PICO_SDK)
-        pico_set_float_implementation(doom_tiny${SUFFIX} none)
+        # Pico-PIO-USB has some use of floats. Rather than avoid it, just suck it up.
+        #pico_set_float_implementation(doom_tiny${SUFFIX} none)
         pico_set_double_implementation(doom_tiny${SUFFIX} none)
         pico_add_extra_outputs(doom_tiny${SUFFIX})
     endif()

@@ -4,6 +4,7 @@ cmake_minimum_required(VERSION 3.13)
 
 # We use PICO_SDK_PATH being set as an indicator that we're doing a Pico BUILD
 if (PICO_SDK_PATH)
+    set(PICO_PIO_USB_PATH ${CMAKE_CURRENT_LIST_DIR}/3rdparty/Pico-PIO-USB)
     include(${PICO_SDK_PATH}/pico_sdk_init.cmake)
     add_subdirectory(${PICO_EXTRAS_PATH} pico_extras)
 endif()

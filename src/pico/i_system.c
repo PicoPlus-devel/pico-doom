@@ -148,6 +148,7 @@ static byte *AutoAllocMemory(int *size, int default_ram, int min_ram)
         // because of our shortptrs, heap cannot be bigger than 256K
         // todo limit this to any static stuff at the end
         *size = ((uint8_t *)SHORTPTR_BASE + 0x40000) - zonemem;
+printf("Note: shortptr_base=%x size=%d zonemem@%p\n", SHORTPTR_BASE, *size, zonemem);
         if (SHORTPTR_BASE >= (uintptr_t)zonemem) {
             I_Error("SHORTPTR_BASE bad");
         }

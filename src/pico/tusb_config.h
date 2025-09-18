@@ -39,6 +39,10 @@
   #error CFG_TUSB_MCU must be defined
 #endif
 
+// Enable host stack with pio-usb if Pico-PIO-USB
+#define CFG_TUH_ENABLED     1
+#define CFG_TUH_RPI_PIO_USB 1
+
 #if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
   #define CFG_TUSB_RHPORT0_MODE       (OPT_MODE_HOST | OPT_MODE_HIGH_SPEED)
 #else
@@ -83,7 +87,7 @@
 // max device support (excluding hub device)
 //#define CFG_TUH_DEVICE_MAX          (CFG_TUH_HUB ? 4 : 1) // hub typically has 4 ports
 // note tinyusb is very wasteful on space
-#define CFG_TUH_DEVICE_MAX          1
+#define CFG_TUH_DEVICE_MAX          3
 #define CFG_TUH_HID                 4 // typical keyboard + mouse device can have 3-4 HID interfaces
 //------------- HID -------------//
 #define CFG_TUH_HID_EPIN_BUFSIZE    64
