@@ -129,7 +129,7 @@ key_type_t key_weapon5 = '5';
 key_type_t key_weapon6 = '6';
 key_type_t key_weapon7 = '7';
 key_type_t key_weapon8 = '8';
-key_type_t key_prevweapon = '\t';
+key_type_t key_prevweapon = 'f';
 key_type_t key_nextweapon = 'r';
 
 // Map control keys:
@@ -180,18 +180,18 @@ key_type_t key_menu_screenshot = 0;
 // Joystick controls
 //
 
-int joybfire = 0;
-int joybstrafe = 1;
-int joybuse = 3;
-int joybspeed = 2;
+int joybfire = 0; // x
+int joybstrafe = 1; // a
+int joybuse = 3; // y
+int joybspeed = 2; // b
 
 int joybstrafeleft = -1;
 int joybstraferight = -1;
 
 int joybjump = -1;
 
-int joybprevweapon = -1;
-int joybnextweapon = -1;
+int joybprevweapon = 4; // select
+int joybnextweapon = 5; // start
 
 int joybmenu = -1;
 int joybautomap = -1;

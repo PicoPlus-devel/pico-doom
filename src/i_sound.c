@@ -237,6 +237,8 @@ static void InitMusicModule(void)
 //  allocates channel buffer, sets S_sfx lookup.
 //
 
+extern int NO_MUSIC, NO_SFX;
+
 void I_InitSound(boolean use_sfx_prefix)
 {
     boolean nosound, nosfx, nomusic;
@@ -258,7 +260,7 @@ void I_InitSound(boolean use_sfx_prefix)
     // Disable sound effects. 
     //
 
-    nosfx = M_CheckParm("-nosfx") > 0;
+    nosfx = NO_SFX;
 
     //!
     // @vanilla
@@ -266,7 +268,7 @@ void I_InitSound(boolean use_sfx_prefix)
     // Disable music.
     //
 
-    nomusic = M_CheckParm("-nomusic") > 0;
+    nomusic = NO_MUSIC;
 
 #if !NO_USE_MUSIC_PACKS
     //!

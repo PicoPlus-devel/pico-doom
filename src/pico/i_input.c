@@ -478,6 +478,7 @@ static struct
 
 static void process_kbd_report(hid_keyboard_report_t const *report);
 static void process_mouse_report(hid_mouse_report_t const * report);
+static void process_joystick_report(size_t len, const uint8_t *report);
 static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len);
 
 // Invoked when device with hid interface is mounted
@@ -626,17 +627,41 @@ static void process_kbd_report(hid_keyboard_report_t const *report)
 static void process_mouse_report(hid_mouse_report_t const * report)
 {
     static event_t ev;
-    static hid_mouse_report_t prev_report = { 0 };
 
     ev.type = ev_mouse;
     ev.data1 = report->buttons;
     ev.data2 = AccelerateMouse(report->x);
-    ev.data3 = AccelerateMouse(report->y);
+    ev.data3 = AccelerateMouse(-report->y);
     D_PostEvent(&ev);
 
+    // Neither of my two mice actually report anything in the "wheel" field
     MapMouseWheelToButtons(report->buttons, report->wheel);
 }
 #endif
+
+static void process_joystick_report(size_t len, const uint8_t *report)
+{
+    static event_t ev;
+
+if (len != 8) return;
+
+#if 1
+    static uint8_t old_report[8];
+
+    if (memcmp(report, &old_report, sizeof(old_report))) {
+        memcpy(old_report, report, sizeof(old_report));
+        printf("%02x %02x %02x %02x %02x %02x %02x %02x\n",
+        report[0], report[1], report[2], report[3], report[4], report[5], report[6], report[7]);
+    }
+#endif
+
+    ev.type = ev_joystick;
+    ev.data1 = (report[5] >> 4) | (report[6] & 0xf0); // x a y b select start
+    ev.data2 = report[0] - 127; // X movement
+    ev.data3 = report[1] - 127; // Y movement
+    ev.data4 = (report[6] & 1 ? -127 : 0) + (report[6] & 2 ? 127 : 0); // strafe on shoulder buttons
+    D_PostEvent(&ev);
+}
 
 //--------------------------------------------------------------------+
 // Generic Report
@@ -702,8 +727,14 @@ static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t c
                 process_mouse_report( (hid_mouse_report_t const*) report );
                 break;
 #endif
+            case HID_USAGE_DESKTOP_JOYSTICK: // specific to https://www.adafruit.com/product/6285
+                TU_LOG1("HID receive joystick report\r\n");
+                process_joystick_report( (size_t) len, report );
+                break;
 
-            default: break;
+            default:
+                printf("HID receive report usage=%d\r\n", rpt_info->usage);
+                break;
         }
     }
 }

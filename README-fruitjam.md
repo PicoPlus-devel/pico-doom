@@ -13,7 +13,7 @@ You should get:
  * Debug UART output on pin "A4"
  * video data on pin 8, sync on 6/7 (I expected data on 9/10 as well but there's not: It's supposed to be 1-bit RGB)
  * Audio (soundtrack + FX) on I2S
- * USB input (keyboard, mouse, joypad) on USB ports
+ * USB input (keyboard, mouse, joypad) on USB ports. Hot plug is not reliable, please plug in devices and then reset.
 
 The input mapping is fixed at build time:
  * Keyboard (any "boot keyboard" should do)
@@ -39,6 +39,10 @@ The input mapping is fixed at build time:
    * a/y: open/activate
    * b: run
    * select/start: cycle weapons
+
+When starting, hold down:
+ * FruitJam "btn2" to disable music
+ * FruitJam "btn3" to disable music & sfx
 
 TODO:
  * Fix status bar

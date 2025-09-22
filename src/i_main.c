@@ -291,8 +291,14 @@ setPage(0);
 bi_decl(bi_3pins_with_names(PICO_AUDIO_I2S_DATA_PIN, "I2S DIN", PICO_AUDIO_I2S_CLOCK_PIN_BASE, "I2S BCK", PICO_AUDIO_I2S_CLOCK_PIN_BASE+1, "I2S LRCK"));
 #endif
 
+
+int NO_MUSIC, NO_SFX;
 int main(int argc, char **argv)
 {
+  // let's poll the hard buttons...
+  gpio_init_mask((1<<4) | (1<<5));
+  gpio_pull_up(4);
+  gpio_pull_up(5);
     // save arguments
 #if !NO_USE_ARGS
     myargc = argc;
@@ -345,6 +351,14 @@ int main(int argc, char **argv)
     if (M_ParmExists("-version") || M_ParmExists("--version")) {
         puts(PACKAGE_STRING);
         exit(0);
+    }
+        printf("About to poll buttons %d %d\n", gpio_get(4), gpio_get(5));
+  
+  if (!gpio_get(4)) {
+        NO_MUSIC = 1;
+        NO_SFX = 1;
+  } else if (!gpio_get(5)) {
+        NO_MUSIC = 1;
     }
 
 #if !NO_USE_ARGS

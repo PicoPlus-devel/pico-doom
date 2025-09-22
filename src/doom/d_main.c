@@ -392,9 +392,6 @@ void D_BindVariables(void)
 
     I_BindInputVariables();
     I_BindVideoVariables();
-#if !NO_USE_JOYSTICK
-    I_BindJoystickVariables();
-#endif
     I_BindSoundVariables();
 
     M_BindBaseControls();
@@ -1885,9 +1882,6 @@ void D_DoomMain (void)
     DEH_printf("I_Init: Setting up machine state.\n");
     I_CheckIsScreensaver();
     I_InitTimer();
-#if !NO_USE_JOYSTICK
-    I_InitJoystick();
-#endif
     I_InitSound(true);
     I_InitMusic();
 
