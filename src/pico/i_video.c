@@ -144,6 +144,7 @@ unsigned int joywait = 0;
 pixel_t *I_VideoBuffer; // todo can't have this
 
 uint8_t __aligned(4) frame_buffer[2][SCREENWIDTH*MAIN_VIEWHEIGHT];
+uint8_t __aligned(4) stbar_fb[32*SCREENWIDTH];
 static uint16_t palette[256];
 static uint16_t __scratch_x("shared_pal") shared_pal[NUM_SHARED_PALETTES][16];
 static int8_t next_pal=-1;
@@ -574,11 +575,10 @@ static void __noinline render_text_mode_scanline(scanvideo_scanline_buffer_t *bu
 static void __scratch_x("scanlines") scanline_func_double(uint32_t *dest, int scanline) {
     if (scanline < MAIN_VIEWHEIGHT) {
         const uint8_t *src = frame_buffer[display_frame_index] + scanline * SCREENWIDTH;
-//        if (scanline == 100) {
-//            printf("SL %d %p\n", display_frame_index, &frame_buffer[display_frame_index]);
-//        }
         palette_convert_scanline(dest, src);
     } else {
+        const uint8_t *src = stbar_fb + (scanline - MAIN_VIEWHEIGHT) * SCREENWIDTH;
+        palette_convert_scanline(dest, src);
         // we expect everything to be overdrawn by statusbar so we do nothing
     }
 }
