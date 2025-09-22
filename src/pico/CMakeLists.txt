@@ -31,7 +31,6 @@ target_include_directories(common_pico INTERFACE
         )
 
 target_compile_definitions(common_pico INTERFACE
-        NO_USE_MOUSE=1
         PICO_AUDIO_I2S_PIO=1
         PICO_AUDIO_I2S_DMA_IRQ=1
         PICO_USE_SW_SPIN_LOCKS=0

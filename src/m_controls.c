@@ -28,13 +28,13 @@
 // Keyboard controls
 //
 
-key_type_t key_right = KEY_RIGHTARROW;
-key_type_t key_left = KEY_LEFTARROW;
+key_type_t key_right = 'd';
+key_type_t key_left = 'a';
 
-key_type_t key_up = KEY_UPARROW;
-key_type_t key_down = KEY_DOWNARROW;
-key_type_t key_strafeleft = ',';
-key_type_t key_straferight = '.';
+key_type_t key_up = 'w';
+key_type_t key_down = 's';
+key_type_t key_strafeleft = 'q';
+key_type_t key_straferight = 'e';
 key_type_t key_fire = KEY_RCTRL;
 key_type_t key_use = ' ';
 key_type_t key_strafe = KEY_RALT;
@@ -106,8 +106,8 @@ mouseb_type_t mousebstraferight = -1;
 mouseb_type_t mousebbackward = -1;
 mouseb_type_t mousebuse = -1;
 
-mouseb_type_t mousebprevweapon = -1;
-mouseb_type_t mousebnextweapon = -1;
+mouseb_type_t mousebprevweapon = 3; // scroll up
+mouseb_type_t mousebnextweapon = 4; // scroll down
 
 key_type_t key_message_refresh = KEY_ENTER;
 key_type_t key_pause = KEY_PAUSE;
@@ -129,8 +129,8 @@ key_type_t key_weapon5 = '5';
 key_type_t key_weapon6 = '6';
 key_type_t key_weapon7 = '7';
 key_type_t key_weapon8 = '8';
-key_type_t key_prevweapon = 0;
-key_type_t key_nextweapon = 0;
+key_type_t key_prevweapon = '\t';
+key_type_t key_nextweapon = 'r';
 
 // Map control keys:
 

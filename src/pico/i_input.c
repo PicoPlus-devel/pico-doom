@@ -88,9 +88,6 @@ static const char shiftxform[] =
 // the data3 field of ev_keydown events.
 static boolean text_input_enabled = true;
 
-// Bit mask of mouse button state.
-static unsigned int mouse_button_state = 0;
-
 // Disallow mouse and joystick movement to cause forward/backward
 // motion.  Specified with the '-novert' command line parameter.
 // This is an int to allow saving to config file
@@ -298,59 +295,8 @@ void I_StopTextInput(void)
 }
 
 #if !NO_USE_MOUSE
-static void UpdateMouseButtonState(unsigned int button, boolean on)
-{
-    static event_t event;
 
-    if (button < SDL_BUTTON_LEFT || button > MAX_MOUSE_BUTTONS)
-    {
-        return;
-    }
-
-    // Note: button "0" is left, button "1" is right,
-    // button "2" is middle for Doom.  This is different
-    // to how SDL sees things.
-
-    switch (button)
-    {
-        case SDL_BUTTON_LEFT:
-            button = 0;
-            break;
-
-        case SDL_BUTTON_RIGHT:
-            button = 1;
-            break;
-
-        case SDL_BUTTON_MIDDLE:
-            button = 2;
-            break;
-
-        default:
-            // SDL buttons are indexed from 1.
-            --button;
-            break;
-    }
-
-    // Turn bit representing this button on or off.
-
-    if (on)
-    {
-        mouse_button_state |= (1 << button);
-    }
-    else
-    {
-        mouse_button_state &= ~(1 << button);
-    }
-
-    // Post an event with the new button state.
-
-    event.type = ev_mouse;
-    event.data1 = mouse_button_state;
-    event.data2 = event.data3 = 0;
-    D_PostEvent(&event);
-}
-
-static void MapMouseWheelToButtons(SDL_MouseWheelEvent *wheel)
+static void MapMouseWheelToButtons(int mouse_button_state, int delta)
 {
     // SDL2 distinguishes button events from mouse wheel events.
     // We want to treat the mouse wheel as two buttons, as per
@@ -358,7 +304,8 @@ static void MapMouseWheelToButtons(SDL_MouseWheelEvent *wheel)
     static event_t up, down;
     int button;
 
-    if (wheel->y <= 0)
+    if (!delta) return;
+    if (delta <= 0)
     {   // scroll down
         button = 4;
     }
@@ -382,27 +329,6 @@ static void MapMouseWheelToButtons(SDL_MouseWheelEvent *wheel)
     D_PostEvent(&up);
 }
 
-void I_HandleMouseEvent(SDL_Event *sdlevent)
-{
-    switch (sdlevent->type)
-    {
-        case SDL_MOUSEBUTTONDOWN:
-            UpdateMouseButtonState(sdlevent->button.button, true);
-            break;
-
-        case SDL_MOUSEBUTTONUP:
-            UpdateMouseButtonState(sdlevent->button.button, false);
-            break;
-
-        case SDL_MOUSEWHEEL:
-            MapMouseWheelToButtons(&(sdlevent->wheel));
-            break;
-
-        default:
-            break;
-    }
-}
-
 static int AccelerateMouse(int val)
 {
     if (val < 0)
@@ -415,39 +341,6 @@ static int AccelerateMouse(int val)
     else
     {
         return val;
-    }
-}
-
-//
-// Read the change in mouse state to generate mouse motion events
-//
-// This is to combine all mouse movement for a tic into one mouse
-// motion event.
-void I_ReadMouse(void)
-{
-    int x, y;
-    event_t ev;
-
-    SDL_GetRelativeMouseState(&x, &y);
-
-    if (x != 0 || y != 0)
-    {
-        ev.type = ev_mouse;
-        ev.data1 = mouse_button_state;
-        ev.data2 = AccelerateMouse(x);
-
-        if (!novert)
-        {
-            ev.data3 = -AccelerateMouse(y);
-        }
-        else
-        {
-            ev.data3 = 0;
-        }
-
-        // XXX: undefined behaviour since event is scoped to
-        // this function
-        D_PostEvent(&ev);
     }
 }
 #endif
@@ -732,18 +625,16 @@ static void process_kbd_report(hid_keyboard_report_t const *report)
 #if !NO_USE_MOUSE
 static void process_mouse_report(hid_mouse_report_t const * report)
 {
+    static event_t ev;
     static hid_mouse_report_t prev_report = { 0 };
 
-    uint8_t button_changed_mask = report->buttons ^ prev_report.buttons;
-    if ( button_changed_mask & report->buttons)
-    {
-        debug_printf(" %c%c%c ",
-                     report->buttons & MOUSE_BUTTON_LEFT   ? 'L' : '-',
-                     report->buttons & MOUSE_BUTTON_MIDDLE ? 'M' : '-',
-                     report->buttons & MOUSE_BUTTON_RIGHT  ? 'R' : '-');
-    }
+    ev.type = ev_mouse;
+    ev.data1 = report->buttons;
+    ev.data2 = AccelerateMouse(report->x);
+    ev.data3 = AccelerateMouse(report->y);
+    D_PostEvent(&ev);
 
-//    cursor_movement(report->x, report->y, report->wheel);
+    MapMouseWheelToButtons(report->buttons, report->wheel);
 }
 #endif
 
@@ -805,11 +696,11 @@ static void process_generic_report(uint8_t dev_addr, uint8_t instance, uint8_t c
                 break;
 
 #if !NO_USE_MOUSE
-                case HID_USAGE_DESKTOP_MOUSE:
-        TU_LOG1("HID receive mouse report\r\n");
-        // Assume mouse follow boot report layout
-        process_mouse_report( (hid_mouse_report_t const*) report );
-      break;
+            case HID_USAGE_DESKTOP_MOUSE:
+                TU_LOG1("HID receive mouse report\r\n");
+                // Assume mouse follow boot report layout
+                process_mouse_report( (hid_mouse_report_t const*) report );
+                break;
 #endif
 
             default: break;

@@ -542,9 +542,6 @@ void D_DoomLoop (void)
 
     I_SetWindowTitle(gamedescription);
     I_GraphicsCheckCommandLine();
-#if !NO_USE_MOUSE
-    I_SetGrabMouseCallback(D_GrabMouseCallback);
-#endif
     I_InitGraphics();
 #if USB_SUPPORT
 
