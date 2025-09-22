@@ -28,13 +28,13 @@
 // Keyboard controls
 //
 
-key_type_t key_right = 'd';
-key_type_t key_left = 'a';
+key_type_t key_right = 'e';
+key_type_t key_left = 'q';
 
 key_type_t key_up = 'w';
 key_type_t key_down = 's';
-key_type_t key_strafeleft = 'q';
-key_type_t key_straferight = 'e';
+key_type_t key_strafeleft = 'a';
+key_type_t key_straferight = 'd';
 key_type_t key_fire = KEY_RCTRL;
 key_type_t key_use = ' ';
 key_type_t key_strafe = KEY_RALT;
