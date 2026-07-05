@@ -13,6 +13,14 @@ project("Chocolate Doom" VERSION 3.0.0 LANGUAGES C CXX)
 enable_language(CXX)
 set(CMAKE_CXX_STANDARD 14)
 
+# When ON, doom_tiny is relinked into the pico-bootLoader app partition
+# (see cmake/BootPartition.cmake) and fruitjam_cflags.h picks a WHX
+# address safe for the bootloader flash map.
+option(BUILD_FOR_BOOTLOADER "Build doom_tiny for the pico-bootLoader" OFF)
+if(BUILD_FOR_BOOTLOADER)
+    add_compile_definitions(BUILD_FOR_BOOTLOADER=1)
+endif()
+
 if (PICO_SDK_PATH)
     # we are using git@github.com:liamfraser/tinyusb.git as it has some RP2040 fixes that aren't upstreamed yet
     #set(PICO_TINYUSB_PATH ${CMAKE_CURRENT_LIST_DIR}/3rdparty/tinyusb)

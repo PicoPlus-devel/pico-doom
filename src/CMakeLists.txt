@@ -486,6 +486,10 @@ function(add_doom_tiny SUFFIX RENDER_LIB)
         # Pico-PIO-USB has some use of floats. Rather than avoid it, just suck it up.
         #pico_set_float_implementation(doom_tiny${SUFFIX} none)
         pico_set_double_implementation(doom_tiny${SUFFIX} none)
+        if (BUILD_FOR_BOOTLOADER)
+            include(${CMAKE_SOURCE_DIR}/cmake/BootPartition.cmake)
+            frens_offset_for_bootloader(doom_tiny${SUFFIX})
+        endif()
         pico_add_extra_outputs(doom_tiny${SUFFIX})
     endif()
 
