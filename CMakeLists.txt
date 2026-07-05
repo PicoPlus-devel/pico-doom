@@ -27,6 +27,9 @@ if (PICO_SDK_PATH)
     # this only affects device builds device, but we want to use zone for malloc in this case so we don't have two separate elastic spaces and can fit more in
     set(SKIP_PICO_MALLOC 1)
     pico_sdk_init()
+    # pico_generate_pio_header (used by our vendored pico_audio_i2s) is only
+    # registered by pico_sdk_init(), so add the driver subdir here.
+    add_subdirectory(3rdparty/pico_shared_drivers)
     if (PICO_ON_DEVICE AND NOT CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
         message(WARNING "You should do a MinSizeRel build when targeting the RP2040
         (with -DCMAKE_BUILD_TYPE=MinSizeRel)")

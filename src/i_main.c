@@ -322,8 +322,16 @@ int main(int argc, char **argv)
     // this breaks the video generation!
     vreg_set_voltage(VREG_VOLTAGE_1_30);
     busy_wait_us(1000);
-    // todo pause? is this the cause of the cold start issue?
-    set_sys_clock_khz(264000, true);
+    // 252 MHz, NOT 264: clk_hstx must be an INTEGER division of clk_sys
+    // (252/2 = 126 MHz exactly). At 264 the required fractional divider
+    // (264/126 = 2.095) makes the RP2350 clock generator alternate /2 and
+    // /3 cycles, jittering the TMDS clock. Video shrugs off the resulting
+    // occasional bit errors (one wrong pixel), but HDMI data-island audio
+    // turns them into continuous broadband crackle — worse on sinks with
+    // weaker equalizers (TV worse than monitor). rp2350-doom's HDMI-audio
+    // investigation (INVESTIGATION_PROGRESS.md) settled on 252/div2 for the
+    // same reason. 252 is also still a multiple of 12 MHz for PIO-USB.
+    set_sys_clock_khz(252000, true);
 #endif
 #if !USE_PICO_NET
     // debug ?

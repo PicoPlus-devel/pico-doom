@@ -6,6 +6,7 @@ target_sources(common_pico INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}/piconet.c
         ${CMAKE_CURRENT_LIST_DIR}/i_timer.c
         ${CMAKE_CURRENT_LIST_DIR}/i_video.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico_hdmi_glue.c
         ${CMAKE_CURRENT_LIST_DIR}/stubs.c
 
         ${CMAKE_CURRENT_LIST_DIR}/i_picosound.c
@@ -31,8 +32,6 @@ target_include_directories(common_pico INTERFACE
         )
 
 target_compile_definitions(common_pico INTERFACE
-        PICO_AUDIO_I2S_PIO=1
-        PICO_AUDIO_I2S_DMA_IRQ=1
         PICO_USE_SW_SPIN_LOCKS=0
         PICO_USE_STACK_GUARDS=0 # todo we can actually use these sensibly, but right now we do overflow!
 )
@@ -41,6 +40,14 @@ target_link_libraries(common_pico INTERFACE pico_stdlib pico_multicore)
 
 if (USE_HSTX)
     target_compile_definitions(common_pico INTERFACE USE_HSTX=1)
+    target_link_libraries(common_pico INTERFACE
+            pico_hdmi
+            pico_audio_i2s_shared
+            tlv320dac3100
+            hardware_dma
+            hardware_pio
+            hardware_i2c
+    )
 else()
     pico_generate_pio_header(common_pico ${CMAKE_CURRENT_LIST_DIR}/video_doom.pio)
     target_link_libraries(common_pico INTERFACE pico_scanvideo_dpi)
