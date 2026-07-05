@@ -204,16 +204,29 @@ void hstx_packet_set_avi_infoframe(hstx_packet_t *packet, uint8_t vic, uint8_t p
     compute_all_parity(packet);
 }
 
-// IEC 60958-3 channel status sequence, one bit per audio frame across the
-// 192-frame block: consumer, L-PCM, copy permitted (byte0=0x04), 48 kHz
-// sample frequency (byte3=0x02). All later bytes zero. Ported from the
-// upstream pico_hdmi's hstx_packet_set_audio_samples_cs (frame < 40 lookup;
-// beyond that the channel status is zero, which per IEC 60958 is a valid
-// "consumer" default).
+// IEC 60958-3 channel status bytes, one bit per audio frame across the
+// 192-frame block: byte 0 = 0x04 (consumer, L-PCM, copy permitted), byte 3 =
+// sample-frequency code (bits 24-27). Bytes 5..23 are zero, which IEC 60958
+// treats as valid consumer defaults, so only the first 5 bytes are stored.
+// Mutable so hstx_packet_set_cs_sample_rate can retarget the rate code; lives
+// in .data (RAM), safe to read from the not-in-flash encode path.
+static uint8_t cs_bytes[5] = {0x04, 0x00, 0x00, 0x02 /* 48 kHz */, 0x00};
+
+void hstx_packet_set_cs_sample_rate(uint32_t sample_rate)
+{
+    // Sample-frequency code, IEC 60958-3 bits 24-27 (LSB-first in byte 3):
+    // 44.1 kHz = 0000, 48 kHz = 0100, 32 kHz = 1100.
+    switch (sample_rate) {
+        case 44100: cs_bytes[3] = 0x00; break;
+        case 32000: cs_bytes[3] = 0x03; break;
+        case 48000:
+        default:    cs_bytes[3] = 0x02; break;
+    }
+}
+
 static inline int channel_status_bit(int frame)
 {
-    static const uint8_t cs[5] = {0x04, 0x00, 0x00, 0x02, 0x00};
-    return frame < 40 ? (cs[frame >> 3] >> (frame & 7)) & 1 : 0;
+    return frame < 40 ? (cs_bytes[frame >> 3] >> (frame & 7)) & 1 : 0;
 }
 
 int __not_in_flash_func(hstx_packet_set_audio_samples_cs)(hstx_packet_t *packet,
@@ -253,7 +266,7 @@ int __not_in_flash_func(hstx_packet_set_audio_samples_cs)(hstx_packet_t *packet,
         d[4] = right & 0xFF;
         d[5] = (right >> 8) & 0xFF;
 
-        // Parity covers 24-bit sample + V, U, C bits (V=U=0 here).
+        // Parity covers the 24-bit sample plus V, U, C bits (V=U=0 here).
         int p_left = (int)compute_parity3(d[1], d[2], 0) ^ c;
         int p_right = (int)compute_parity3(d[4], d[5], 0) ^ c;
 

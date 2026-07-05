@@ -504,6 +504,10 @@ static void configure_audio_packets(uint32_t sample_rate)
 {
     configured_audio_sample_rate = sample_rate;
     hstx_di_queue_set_sample_rate(sample_rate);
+    // Keep the IEC 60958 channel-status sample-frequency code in lockstep
+    // with ACR and the Audio InfoFrame — strict sinks require all three to
+    // agree with the actual stream rate.
+    hstx_packet_set_cs_sample_rate(sample_rate);
 
     hstx_packet_t packet;
     hstx_data_island_t island;

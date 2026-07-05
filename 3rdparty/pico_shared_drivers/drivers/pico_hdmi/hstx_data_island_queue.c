@@ -56,10 +56,12 @@ void hstx_di_queue_init(void)
         di_ring_buffer = (hstx_data_island_t *)malloc(DI_RING_BUFFER_SIZE * sizeof(hstx_data_island_t));
     }
 #endif
-    // Build a single silent audio packet with fixed B-frame flags.
+    // Build a single silent audio packet. frame_count=4 (NOT 0): frame 0
+    // would set the IEC 60958 block-start B flag, so every underrun
+    // insertion would reset the sink's channel-status block sync mid-stream.
     hstx_packet_t packet;
     audio_sample_t samples[4] = {0};
-    (void)hstx_packet_set_audio_samples(&packet, samples, 4, 0);
+    (void)hstx_packet_set_audio_samples(&packet, samples, 4, 4);
     hstx_encode_data_island(&silence_packet, &packet, false, true);
 }
 
