@@ -24,6 +24,6 @@ if [ -z "$PICOTOOL" ]; then
     exit 1
 fi
 # pico-bootLoader flash map: WHX lives at 0x10400000 (past the 3 MB slot
-# reserved for the doom_tiny image at 0x10100000). Must match TINY_WAD_ADDR
+# reserved for the doom_tiny image at 0x10080000). Must match TINY_WAD_ADDR
 # in fruitjam_cflags.h (the BUILD_FOR_BOOTLOADER branch).
 "$PICOTOOL" uf2 convert doom1.whx -t bin $BUILD/src/doom1-whx-for-fruitjam.uf2 -o 0x10400000 --family data

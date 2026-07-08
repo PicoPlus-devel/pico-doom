@@ -1,17 +1,17 @@
 # BootPartition.cmake - Relink doom_tiny for the pico-bootLoader app partition.
 #
 # The pico-bootLoader (https://github.com/FrankHoedemakers/pico-bootLoader)
-# owns the first 1 MB of flash and treats everything after it as an
+# owns the first 512 KB of flash and treats everything after it as an
 # application partition. To be launchable from the picker, doom_tiny must
-# be linked with FLASH ORIGIN=0x10100000 instead of the RP2350 default
+# be linked with FLASH ORIGIN=0x10080000 instead of the RP2350 default
 # 0x10000000. This file adapts the same relink helper that lives in
 # pico-bootLoader's pico_shared/BootPartition.cmake, scoped to what doom
 # needs (no slot-mode / no pinned-slot helper).
 #
 # Flash map assumed here:
 #
-#   0x10000000  bootloader                    (1 MB)
-#   0x10100000  emulator app partition        (3 MB reserved for doom_tiny)
+#   0x10000000  bootloader                    (512 KB)
+#   0x10080000  emulator app partition        (3 MB reserved for doom_tiny)
 #   0x10400000  doom WHX data (TINY_WAD_ADDR)
 #   0x11000000  end of 16 MB Fruit Jam flash
 #
@@ -24,8 +24,8 @@ endif()
 set(_DOOM_BOOTPARTITION_INCLUDED 1)
 
 set(DOOM_XIP_BASE     "0x10000000" CACHE STRING "RP2350 XIP flash base")
-set(DOOM_APP_BASE     "0x10100000" CACHE STRING "Bootloader app-partition base")
-set(DOOM_APP_SIZE     "0x300000"   CACHE STRING "Bytes reserved for doom_tiny (3 MB, up to 0x10400000)")
+set(DOOM_APP_BASE     "0x10080000" CACHE STRING "Bootloader app-partition base")
+set(DOOM_APP_SIZE     "0x300000"   CACHE STRING "Bytes reserved for doom_tiny (3 MB, up to 0x10380000)")
 set(DOOM_FLASH_TOTAL  "0x1000000"  CACHE STRING "Total external flash on the board (Fruit Jam = 16 MB)")
 
 # _doom_relink_flash(<target> <origin_hex> <length_hex>)
