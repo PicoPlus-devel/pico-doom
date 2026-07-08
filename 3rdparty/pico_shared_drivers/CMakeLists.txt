@@ -5,10 +5,16 @@
 #   pico_hdmi                (HSTX video + HDMI data-island audio)
 #   pico_audio_i2s_shared    (I2S PIO+DMA, renamed to avoid clash with pico-extras)
 #   tlv320dac3100            (Fruit Jam DAC + headphone-detect)
+#   pico_shared_usb_hid      (USB HID host: keyboard/mouse/gamepads + xinput)
 #
 # Resync by re-copying from pico_shared/drivers — only pico_audio_i2s/CMakeLists.txt
-# is patched (target renamed).
+# is patched (target renamed). usb_hid is copied from the pico_shared root
+# (hid_app.cpp, gamepad.cpp, gamepad.h) and depends on the 3rdparty/tusb_xinput
+# submodule for the XInput host class driver.
 
 add_subdirectory(drivers/tlv320dac3100)
 add_subdirectory(drivers/pico_audio_i2s)
 add_subdirectory(drivers/pico_hdmi)
+if (PICO_ON_DEVICE)
+    add_subdirectory(usb_hid)
+endif()

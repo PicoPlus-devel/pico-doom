@@ -631,6 +631,9 @@ else()
 endif()
 
 if (PICO_SDK)
+    # One consolidated target: doom_tiny.uf2 handles all inputs (USB keyboard,
+    # mouse and gamepads via the vendored pico_shared usb_hid driver). The old
+    # doom_tiny_nost / doom_tiny_usb / doom_tiny_nost_usb variants are gone.
     add_doom_tiny("" render_newhope)
     add_library(tiny_settings INTERFACE)
     target_compile_definitions(tiny_settings INTERFACE
@@ -640,29 +643,18 @@ if (PICO_SDK)
             NO_USE_FINALE_BUNNY=1
     )
     target_compile_definitions(doom_tiny PRIVATE
-            TINY_WAD_ADDR=0x10040000
+            # Overridden to 0x10080000 by fruitjam_cflags.h (and to 0x10400000
+            # for BUILD_FOR_BOOTLOADER); this default only matters for builds
+            # that don't -include that header.
+            TINY_WAD_ADDR=0x10048000
     )
     target_link_libraries(doom_tiny PRIVATE tiny_settings)
-    add_doom_tiny(_nost render_newhope)
-
-    target_compile_definitions(doom_tiny_nost PRIVATE
-            # NO_USE_FINALE_CAST=1 # note this is only used by doom II but doesnt take that much more space
-            TINY_WAD_ADDR=0x10048000
-            )
     if (PICO_ON_DEVICE)
         suppress_tinyusb_warnings()
-        add_doom_tiny(_usb render_newhope)
-        target_link_libraries(doom_tiny_usb PRIVATE tiny_settings pico_cd)
-        target_compile_definitions(doom_tiny_usb PRIVATE
+        target_link_libraries(doom_tiny PRIVATE pico_cd)
+        target_compile_definitions(doom_tiny PRIVATE
                 USB_SUPPORT=1
-                TINY_WAD_ADDR=0x10042000 # ugh tinyusb is >8K currently!!
         )
-        add_doom_tiny(_nost_usb render_newhope)
-        target_link_libraries(doom_tiny_nost_usb PRIVATE pico_cd)
-        target_compile_definitions(doom_tiny_nost_usb PRIVATE
-                USB_SUPPORT=1
-                TINY_WAD_ADDR=0x10048000
-                )
     endif()
 endif()
 

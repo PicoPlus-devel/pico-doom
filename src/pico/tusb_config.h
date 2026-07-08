@@ -77,18 +77,22 @@
 //--------------------------------------------------------------------
 
 // Size of buffer to hold descriptors and other data used for enumeration
-#define CFG_TUH_ENUMERATION_BUFSIZE 128
+// (gamepad report descriptors can exceed 128 bytes)
+#define CFG_TUH_ENUMERATION_BUFSIZE 256
 
 #define CFG_TUH_HUB                 1
 #define CFG_TUH_CDC                 0
 #define CFG_TUH_MSC                 0
 #define CFG_TUH_VENDOR              0
 
+// XInput host class driver (3rdparty/tusb_xinput) for Xbox-style controllers
+#define CFG_TUH_XINPUT              1
+
 // max device support (excluding hub device)
 //#define CFG_TUH_DEVICE_MAX          (CFG_TUH_HUB ? 4 : 1) // hub typically has 4 ports
 // note tinyusb is very wasteful on space
 #define CFG_TUH_DEVICE_MAX          3
-#define CFG_TUH_HID                 4 // typical keyboard + mouse device can have 3-4 HID interfaces
+#define CFG_TUH_HID                 6 // keyboard + mouse + gamepad, some with several HID interfaces each
 //------------- HID -------------//
 #define CFG_TUH_HID_EPIN_BUFSIZE    64
 //#define CFG_TUH_HID_EPOUT_BUFSIZE   64

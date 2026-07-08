@@ -11,7 +11,8 @@ endif()
 
 project("Chocolate Doom" VERSION 3.0.0 LANGUAGES C CXX)
 enable_language(CXX)
-set(CMAKE_CXX_STANDARD 14)
+# C++17: the vendored pico_shared usb_hid headers use inline static constexpr members.
+set(CMAKE_CXX_STANDARD 17)
 
 # When ON, doom_tiny is relinked into the pico-bootLoader app partition
 # (see cmake/BootPartition.cmake) and fruitjam_cflags.h picks a WHX
@@ -29,6 +30,11 @@ if (PICO_SDK_PATH)
     pico_sdk_init()
     # pico_generate_pio_header (used by our vendored pico_audio_i2s) is only
     # registered by pico_sdk_init(), so add the driver subdir here.
+    if (PICO_ON_DEVICE)
+        # XInput host class driver (Xbox 360/One/Series, 8BitDo in X-mode),
+        # consumed by pico_shared_usb_hid.
+        add_subdirectory(3rdparty/tusb_xinput)
+    endif()
     add_subdirectory(3rdparty/pico_shared_drivers)
     if (PICO_ON_DEVICE AND NOT CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
         message(WARNING "You should do a MinSizeRel build when targeting the RP2040

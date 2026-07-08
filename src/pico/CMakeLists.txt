@@ -15,6 +15,7 @@ if (PICO_ON_DEVICE)
     target_sources(common_pico INTERFACE
             ${CMAKE_CURRENT_LIST_DIR}/blit.S
             ${CMAKE_CURRENT_LIST_DIR}/picoflash.c
+            ${CMAKE_CURRENT_LIST_DIR}/i_usbhid.cpp
             )
     pico_wrap_function(common_pico malloc)
     pico_wrap_function(common_pico calloc)
@@ -56,5 +57,5 @@ endif()
 
 add_library(pico_cd INTERFACE)
 if (TARGET tinyusb_host)
-    target_link_libraries(pico_cd INTERFACE tinyusb_host tinyusb_pico_pio_usb)
+    target_link_libraries(pico_cd INTERFACE tinyusb_host tinyusb_pico_pio_usb pico_shared_usb_hid)
 endif()
