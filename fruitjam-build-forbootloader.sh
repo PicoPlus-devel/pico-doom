@@ -1,6 +1,6 @@
 #!/bin/sh
 TAG=fruitjam
-BUILD=build_${TAG}
+BUILD=build_bl_${TAG}
 export CFLAGS="-include $(pwd)/fruitjam_cflags.h -g3 -ggdb"
 export CXXFLAGS="-include $(pwd)/fruitjam_cflags.h -g3 -ggdb"
 cmake -S . -B $BUILD \
