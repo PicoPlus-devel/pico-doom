@@ -23,6 +23,7 @@
 #include "tlv320dac3100.h"   // pico_shared: tlv320_poll_headphone
 
 #include <stdio.h>
+#include <assert.h>
 
 // Runtime audio-sink routing. Poll code in doom_poll_headphone() and the
 // per-sample fanout in i_picosound.c read this. Default = HDMI so audio comes
@@ -39,21 +40,16 @@ void doom_hdmi_init(video_output_scanline_cb_t scanline_cb,
                     video_output_task_fn bg_task,
                     uint32_t audio_sample_rate)
 {
-    // pico_hdmi is built with NOHSTXCLOCK, so its video_output_init() no longer
-    // touches clk_hstx. Derive clk_hstx = clk_sys / 2 with an explicit INTEGER
-    // divider: 252 MHz / 2 = 126 MHz → 25.2 MHz pixel clock (CSR_CLKDIV=5),
-    // matching pico_hdmi's DI_LINE_RATE_HZ and ACR N/CTS assumptions exactly.
-    //
-    // Integer division is load-bearing: a fractional divider (e.g. the old
-    // 264 MHz / 2.095) alternates divisors cycle-to-cycle, jittering the TMDS
-    // clock. Video tolerates the resulting sporadic bit errors; data-island
-    // audio turns them into continuous broadband noise. See the matching
-    // comment at set_sys_clock_khz(252000) in i_main.c.
-    clock_configure_int_divider(clk_hstx,
-                                /*glitchless mux*/ 0,
-                                CLOCKS_CLK_HSTX_CTRL_AUXSRC_VALUE_CLK_SYS,
-                                clock_get_hz(clk_sys),
-                                2);
+    // pico_hdmi is built with NOHSTXCLOCK, so its video_output_init() doesn't
+    // touch clk_hstx — and neither do we anymore. clk_hstx is configured once
+    // in i_main.c: a fixed 126 MHz from a retasked PLL_USB, deliberately
+    // DECOUPLED from PLL_SYS (at 378 MHz, PLL_SYS jitter on the TMDS bit
+    // clock shows as dots/sparkles on strict HDMI sinks — see the FrensHelpers
+    // port in i_main.c). Reconfiguring from clk_sys here would put that
+    // jitter back on the link. The 25.2 MHz pixel clock (CSR_CLKDIV=5) and
+    // pico_hdmi's DI_LINE_RATE_HZ / ACR N=6144/CTS=25200 assumptions are
+    // unchanged.
+    assert(clock_get_hz(clk_hstx) == 126000000u);
 
     // HDMI mode (not DVI-only) so data-island audio packets are emitted.
     video_output_set_dvi_mode(false);

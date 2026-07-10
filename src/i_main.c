@@ -32,6 +32,7 @@
 #if PICO_ON_DEVICE
 #include "hardware/clocks.h"
 #include "hardware/vreg.h"
+#include "hardware/pll.h"
 #endif
 #endif
 #if USE_PICO_NET
@@ -306,32 +307,50 @@ int main(int argc, char **argv)
 #endif
 #if PICO_ON_DEVICE
 #if PICO_RP2350
-    uint clkdiv = 3;
-    uint rxdelay = 2;
-    hw_write_masked(
-            &qmi_hw->m[0].timing,
-            ((clkdiv << QMI_M0_TIMING_CLKDIV_LSB) & QMI_M0_TIMING_CLKDIV_BITS) |
-            ((rxdelay << QMI_M0_TIMING_RXDELAY_LSB) & QMI_M0_TIMING_RXDELAY_BITS),
-            QMI_M0_TIMING_CLKDIV_BITS | QMI_M0_TIMING_RXDELAY_BITS
-    );
 #if defined(ADAFRUIT_FRUIT_JAM)
     fruitjam_init_i2s();
 #endif
 #endif
 #if 1
-    // this breaks the video generation!
-    vreg_set_voltage(VREG_VOLTAGE_1_30);
-    busy_wait_us(1000);
-    // 252 MHz, NOT 264: clk_hstx must be an INTEGER division of clk_sys
-    // (252/2 = 126 MHz exactly). At 264 the required fractional divider
-    // (264/126 = 2.095) makes the RP2350 clock generator alternate /2 and
-    // /3 cycles, jittering the TMDS clock. Video shrugs off the resulting
-    // occasional bit errors (one wrong pixel), but HDMI data-island audio
-    // turns them into continuous broadband crackle — worse on sinks with
-    // weaker equalizers (TV worse than monitor). rp2350-doom's HDMI-audio
-    // investigation (INVESTIGATION_PROGRESS.md) settled on 252/div2 for the
-    // same reason. 252 is also still a multiple of 12 MHz for PIO-USB.
-    set_sys_clock_khz(252000, true);
+    // 378 MHz @ 1.60 V — the proven pico-infonesPlus overclock for this
+    // board. Sequence ported from pico_shared's FrensHelpers.cpp
+    // setClocksAndStartStdio() (378 MHz / PIO-USB path); keep it in step
+    // with that helper.
+    vreg_disable_voltage_limit();
+    vreg_set_voltage(VREG_VOLTAGE_1_60);
+    // Relax XIP timing BEFORE raising clk_sys: 4x flash divisor (378/4 =
+    // 94.5 MHz) plus rxdelay/cooldown margins. Whole-register value is the
+    // hardware-proven profile from FrensHelpers.cpp — without it, XIP
+    // fetches fault at this frequency.
+    qmi_hw->m[0].timing = 0x60007304;
+    sleep_ms(100);
+    // (378 is not a multiple of 12 MHz; Pico-PIO-USB runs on a fractional
+    // divider here — confirmed working in pico-infonesPlus on this board.)
+    set_sys_clock_khz(378000, true);
+    sleep_ms(100);
+    // clk_hstx: deliberately NOT derived from clk_sys even though
+    // 378/3 = 126 is an integer division — at 378 MHz PLL_SYS jitter
+    // propagates into the TMDS bit clock and strict HDMI sinks show
+    // dots/sparkles (eye-pattern closure; see FrensHelpers.cpp). Instead
+    // retask PLL_USB as a dedicated, fixed 126 MHz HSTX source. Safe on
+    // this build only because USB host is PIO-USB on GPIO 1/2 — the USB
+    // controller (which needs PLL_USB at 48 MHz) is unused.
+    pll_deinit(pll_usb);
+    pll_init(pll_usb, 1, 756000000, 6, 1); // 756 / (6*1) = 126 MHz
+    clock_configure(clk_hstx,
+                    0,
+                    CLOCKS_CLK_HSTX_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB,
+                    126000000u,
+                    126000000u);
+    // set_sys_clock_khz parked clk_peri on PLL_USB@48 MHz, which we just
+    // retasked to 126 — put clk_peri on PLL_SYS at full speed instead
+    // (helper-proven order; stdio_init_all below derives UART dividers
+    // from whatever clk_peri reads then).
+    clock_configure(clk_peri,
+                    0,
+                    CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS,
+                    378000000u,
+                    378000000u);
 #endif
 #if !USE_PICO_NET
     // debug ?
