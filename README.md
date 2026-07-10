@@ -108,7 +108,9 @@ Pin assignments live in [fruitjam_cflags.h](fruitjam_cflags.h).
   headphone jack is auto-detected by the driver.
 * **Input** — USB host (keyboard, mouse, gamepad). Hot-plug is not reliable:
   plug your devices in first, then reset.
-* **Debug** — UART on GPIO 44 (TX) / 45 (RX).
+* **Debug** — UART on GPIO 44 (TX) / 45 (RX), 115200 baud.
+* **Clocking** — the RP2350 is overclocked to **378 MHz at 1.60 V**. The
+  extra CPU headroom fixes the in-game audio slowdown.
 
 Hold a button at power-on to disable audio:
 
