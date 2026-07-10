@@ -147,7 +147,6 @@ unsigned int joywait = 0;
 pixel_t *I_VideoBuffer; // todo can't have this
 
 uint8_t __aligned(4) frame_buffer[2][SCREENWIDTH*MAIN_VIEWHEIGHT];
-uint8_t __aligned(4) stbar_fb[32*SCREENWIDTH];
 static uint16_t palette[256];
 static uint16_t __scratch_x("shared_pal") shared_pal[NUM_SHARED_PALETTES][16];
 static int8_t next_pal=-1;
@@ -580,8 +579,6 @@ static void __scratch_x("scanlines") scanline_func_double(uint32_t *dest, int sc
         const uint8_t *src = frame_buffer[display_frame_index] + scanline * SCREENWIDTH;
         palette_convert_scanline(dest, src);
     } else {
-        const uint8_t *src = stbar_fb + (scanline - MAIN_VIEWHEIGHT) * SCREENWIDTH;
-        palette_convert_scanline(dest, src);
         // we expect everything to be overdrawn by statusbar so we do nothing
     }
 }
@@ -768,7 +765,11 @@ static inline uint draw_vpatch(uint16_t *dest, patch_t *patch, vpatchlist_t *vp,
         assert(sp < NUM_SHARED_PALETTES);
         switch (vpatch_type(patch)) {
             case vp4_solid: {
-#if PICO_ON_DEVICE
+                // The XIP-stream prefetch below hid per-scanline flash latency in the
+                // scanvideo IRQ; the HSTX background task has ample budget, and skipping
+                // it keeps raw DMA channel 11 / XIP streaming away from the pico_hdmi
+                // and I2S drivers.
+#if PICO_ON_DEVICE && !USE_HSTX
                 if (patch == stbar) {
                     static const uint8_t *cached_data;
 #if PICO_RP2040
@@ -875,6 +876,42 @@ static inline uint draw_vpatch(uint16_t *dest, patch_t *patch, vpatchlist_t *vp,
         }
     }
     return data - data0;
+}
+
+// Composite the current frame's overlay vpatch list onto one scanline. Must be
+// called with ascending scanline numbers within a frame: the starter/next
+// linked lists (rebuilt each frame by new_frame_init_overlays_palette_and_wipe)
+// are consumed statefully, with per-patch data offsets carried in vpatch_doff.
+// Single caller per build (scanvideo fill_scanlines or the HSTX background
+// task), so it inlines and inherits the caller's section.
+static inline void composite_overlay_scanline(uint16_t *dest, int scanline) {
+    assert(scanline < count_of(vpatchlists->vpatch_starters));
+    int prev = 0;
+    for (int vp = vpatchlists->vpatch_starters[scanline]; vp;) {
+        int next = vpatchlists->vpatch_next[vp];
+        while (vpatchlists->vpatch_next[prev] && vpatchlists->vpatch_next[prev] < vp) {
+            prev = vpatchlists->vpatch_next[prev];
+        }
+        assert(prev != vp);
+        assert(vpatchlists->vpatch_next[prev] != vp);
+        vpatchlists->vpatch_next[vp] = vpatchlists->vpatch_next[prev];
+        vpatchlists->vpatch_next[prev] = vp;
+        prev = vp;
+        vp = next;
+    }
+    vpatchlist_t *overlays = vpatchlists->overlays[display_overlay_index];
+    prev = 0;
+    for (int vp = vpatchlists->vpatch_next[prev]; vp; vp = vpatchlists->vpatch_next[prev]) {
+        patch_t *patch = resolve_vpatch_handle(overlays[vp].entry.patch_handle);
+        int yoff = scanline - overlays[vp].entry.y;
+        if (yoff < vpatch_height(patch)) {
+            vpatchlists->vpatch_doff[vp] = draw_vpatch(dest, patch, &overlays[vp],
+                                                       vpatchlists->vpatch_doff[vp]);
+            prev = vp;
+        } else {
+            vpatchlists->vpatch_next[prev] = vpatchlists->vpatch_next[vp];
+        }
+    }
 }
 
 // this is not in flash as quite large and only once per frame
@@ -1052,11 +1089,15 @@ void __not_in_flash_func(doom_hstx_bg_task)(void) {
     interp_updated = 0;
 #endif
     scanline_func fn = scanline_funcs[display_video_type];
+    bool overlays_on = display_video_type >= FIRST_VIDEO_TYPE_WITH_OVERLAYS;
     for (int row = 0; row < DOOM_RGB_FB_ROWS; row++) {
         if (fn) {
             fn((uint32_t *)doom_rgb_fb[row], row);
         } else {
             memset(doom_rgb_fb[row], 0, SCREENWIDTH * sizeof(uint16_t));
+        }
+        if (overlays_on) {
+            composite_overlay_scanline(doom_rgb_fb[row], row);
         }
     }
 }
@@ -1108,33 +1149,7 @@ void __scratch_x("scanlines") fill_scanlines() {
             assert (buffer->data < text_scanline_buffer_start || buffer->data >= text_scanline_buffer_start + TEXT_SCANLINE_BUFFER_TOTAL_WORDS);
             scanline_funcs[display_video_type](buffer->data+1, scanline);
             if (display_video_type >= FIRST_VIDEO_TYPE_WITH_OVERLAYS) {
-                assert(scanline < count_of(vpatchlists->vpatch_starters));
-                int prev = 0;
-                for (int vp = vpatchlists->vpatch_starters[scanline]; vp;) {
-                    int next = vpatchlists->vpatch_next[vp];
-                    while (vpatchlists->vpatch_next[prev] && vpatchlists->vpatch_next[prev] < vp) {
-                        prev = vpatchlists->vpatch_next[prev];
-                    }
-                    assert(prev != vp);
-                    assert(vpatchlists->vpatch_next[prev] != vp);
-                    vpatchlists->vpatch_next[vp] = vpatchlists->vpatch_next[prev];
-                    vpatchlists->vpatch_next[prev] = vp;
-                    prev = vp;
-                    vp = next;
-                }
-                vpatchlist_t *overlays = vpatchlists->overlays[display_overlay_index];
-                prev = 0;
-                for (int vp = vpatchlists->vpatch_next[prev]; vp; vp = vpatchlists->vpatch_next[prev]) {
-                    patch_t *patch = resolve_vpatch_handle(overlays[vp].entry.patch_handle);
-                    int yoff = scanline - overlays[vp].entry.y;
-                    if (yoff < vpatch_height(patch)) {
-                        vpatchlists->vpatch_doff[vp] = draw_vpatch((uint16_t*)(buffer->data + 1), patch, &overlays[vp],
-                                                                   vpatchlists->vpatch_doff[vp]);
-                        prev = vp;
-                    } else {
-                        vpatchlists->vpatch_next[prev] = vpatchlists->vpatch_next[vp];
-                    }
-                }
+                composite_overlay_scanline((uint16_t *)(buffer->data + 1), scanline);
             }
             uint16_t *p = (uint16_t *) buffer->data;
             p[0] = video_doom_offset_raw_run;

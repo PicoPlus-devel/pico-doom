@@ -14,9 +14,6 @@ technical story of the RP2xxx port (WAD compression, memory tricks, the
 `whd_gen` tool) see [README.RP2040.md](README.RP2040.md); for the upstream engine
 see [README-chocolate.md](README-chocolate.md).
 
-> **Status: work in progress.** It's very playable, but a few rendering issues
-> remain — see [Known issues](#known-issues).
-
 ## What you need
 
 **Hardware**
@@ -172,19 +169,6 @@ Xbox pads: Y = X, X = Y.
 
 ## Known issues
 
-* The status bar flickers.
-* End-of-level stats are invisible.
-
-Both are caused by the way "overlays" are currently handled; fixing overlays is
-the underlying fix for both.
+* USB hot-plug is not reliable: plug your devices in first, then reset.
 
 **Would be nice:** `PICO_NET` support for deathmatch.
-
-## Building on a host and licensing
-
-You can also build a native `chocolate-doom` (useful for verification) or an
-SDL host build of RP2040 Doom — see [README.RP2040.md](README.RP2040.md) for
-both, plus details on the `whd_gen` WAD converter.
-
-Code derived from Chocolate Doom keeps its existing license (generally GPLv2);
-new RP2040 Doom code is BSD-3. See [COPYING.md](COPYING.md) for the full terms.
