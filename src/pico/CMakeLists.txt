@@ -24,7 +24,10 @@ if (PICO_ON_DEVICE)
             PICO_HEAP_SIZE=0
             USE_ZONE_FOR_MALLOC=1
     )
-    target_link_libraries(common_pico INTERFACE  hardware_i2c)
+    # hardware_i2c: TLV320 codec I2C. pico_shared_nespad: legacy NES/SNES
+    # pads on PIO — compiled everywhere, only polled when the board's cflags
+    # header defines NES_PIN_CLK != -1 (see i_usbhid.cpp).
+    target_link_libraries(common_pico INTERFACE  hardware_i2c pico_shared_nespad)
 endif()
 target_include_directories(common_pico INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}
@@ -57,5 +60,16 @@ endif()
 
 add_library(pico_cd INTERFACE)
 if (TARGET tinyusb_host)
-    target_link_libraries(pico_cd INTERFACE tinyusb_host tinyusb_pico_pio_usb pico_shared_usb_hid)
+    # ENABLE_PIO_USB picks the USB host transport at link time and must agree
+    # with the HAS_USBPIO macro in the board's cflags header (a PIO header
+    # without this link fails loudly on the missing pio_usb includes; the
+    # native boards pass -DENABLE_PIO_USB=0). Default ON so the original
+    # fruitjam build scripts keep working unchanged.
+    if (NOT DEFINED ENABLE_PIO_USB)
+        set(ENABLE_PIO_USB 1)
+    endif()
+    target_link_libraries(pico_cd INTERFACE tinyusb_host pico_shared_usb_hid)
+    if (ENABLE_PIO_USB)
+        target_link_libraries(pico_cd INTERFACE tinyusb_pico_pio_usb)
+    endif()
 endif()

@@ -296,10 +296,14 @@ bi_decl(bi_3pins_with_names(PICO_AUDIO_I2S_DATA_PIN, "I2S DIN", PICO_AUDIO_I2S_C
 int NO_MUSIC, NO_SFX;
 int main(int argc, char **argv)
 {
-  // let's poll the hard buttons...
+#if defined(ADAFRUIT_FRUIT_JAM)
+  // let's poll the hard buttons... (Fruit Jam buttons 2/3 on GPIO 4/5 —
+  // other boards use those GPIOs for SD/controller wiring, so keep this
+  // strictly Fruit Jam: a low-driven pin would silently disable sound.)
   gpio_init_mask((1<<4) | (1<<5));
   gpio_pull_up(4);
   gpio_pull_up(5);
+#endif
     // save arguments
 #if !NO_USE_ARGS
     myargc = argc;
@@ -328,13 +332,14 @@ int main(int argc, char **argv)
     // divider here — confirmed working in pico-infonesPlus on this board.)
     set_sys_clock_khz(378000, true);
     sleep_ms(100);
+#ifdef HAS_USBPIO
     // clk_hstx: deliberately NOT derived from clk_sys even though
     // 378/3 = 126 is an integer division — at 378 MHz PLL_SYS jitter
     // propagates into the TMDS bit clock and strict HDMI sinks show
     // dots/sparkles (eye-pattern closure; see FrensHelpers.cpp). Instead
     // retask PLL_USB as a dedicated, fixed 126 MHz HSTX source. Safe on
-    // this build only because USB host is PIO-USB on GPIO 1/2 — the USB
-    // controller (which needs PLL_USB at 48 MHz) is unused.
+    // PIO-USB builds only — the USB controller (which needs PLL_USB at
+    // 48 MHz) is unused when the host port runs on Pico-PIO-USB.
     pll_deinit(pll_usb);
     pll_init(pll_usb, 1, 756000000, 6, 1); // 756 / (6*1) = 126 MHz
     clock_configure(clk_hstx,
@@ -342,10 +347,28 @@ int main(int argc, char **argv)
                     CLOCKS_CLK_HSTX_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB,
                     126000000u,
                     126000000u);
-    // set_sys_clock_khz parked clk_peri on PLL_USB@48 MHz, which we just
-    // retasked to 126 — put clk_peri on PLL_SYS at full speed instead
-    // (helper-proven order; stdio_init_all below derives UART dividers
-    // from whatever clk_peri reads then).
+#else
+    // Native-USB boards (adafruitdvisd, murmulatorm2): the USB controller
+    // needs PLL_USB at its stock 48 MHz, so PLL_USB cannot be retasked as
+    // the HSTX source. Derive clk_hstx from clk_sys instead — 378/3 = 126
+    // exactly, which keeps the 25.2 MHz pixel clock and satisfies the
+    // 126 MHz assert in pico_hdmi_glue.c. This mirrors the proven
+    // native-USB path in pico_shared's FrensHelpers.cpp
+    // setClocksAndStartStdio() verbatim (CLK_SYS aux tap; do NOT switch to
+    // the CLKSRC_PLL_SYS tap — the ecosystem has only ever shipped the
+    // CLK_SYS form on these boards). Trade-off: PLL_SYS jitter rides on the
+    // TMDS bit clock (possible sparkles on strict HDMI sinks); unavoidable
+    // here since PLL_USB is spoken for.
+    clock_configure(clk_hstx,
+                    0,
+                    CLOCKS_CLK_HSTX_CTRL_AUXSRC_VALUE_CLK_SYS,
+                    378000000u,
+                    126000000u);
+#endif
+    // set_sys_clock_khz parked clk_peri on PLL_USB@48 MHz (which the PIO-USB
+    // build just retasked to 126) — put clk_peri on PLL_SYS at full speed on
+    // both variants (helper-proven order; stdio_init_all below derives UART
+    // dividers from whatever clk_peri reads then).
     clock_configure(clk_peri,
                     0,
                     CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS,
@@ -379,14 +402,16 @@ int main(int argc, char **argv)
         puts(PACKAGE_STRING);
         exit(0);
     }
+#if defined(ADAFRUIT_FRUIT_JAM)
         printf("About to poll buttons %d %d\n", gpio_get(4), gpio_get(5));
-  
+
   if (!gpio_get(4)) {
         NO_MUSIC = 1;
         NO_SFX = 1;
   } else if (!gpio_get(5)) {
         NO_MUSIC = 1;
     }
+#endif
 
 #if !NO_USE_ARGS
     M_FindResponseFile();

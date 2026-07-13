@@ -51,6 +51,23 @@
 #define HSTX_AUDIO_DI_HIGH_WATERMARK 200
 #endif
 
+// Which audio_i2s driver this board carries — set in the board's force-included
+// <tag>_cflags.h as a numeric literal (1 = TLV320, 2 = PCM5000A, values from
+// audio_i2s.h). Defaults to the TLV320 (Fruit Jam) when a header predates the
+// multi-board split.
+#ifndef DOOM_AUDIO_I2S_DRIVER
+#define DOOM_AUDIO_I2S_DRIVER PICO_AUDIO_I2S_DRIVER_TLV320
+#endif
+
+// Headphone-detect is only available on the TLV320 with its INT pin wired
+// (Fruit Jam). Boards without it (PCM5100A boards, Feather's TLV320 breakout)
+// can't switch sinks at runtime, so they drive HDMI and I2S simultaneously.
+#if DOOM_AUDIO_I2S_DRIVER == PICO_AUDIO_I2S_DRIVER_TLV320 && PICO_AUDIO_I2S_INTERRUPT_PIN != -1
+#define DOOM_AUDIO_EXCLUSIVE_SINK 1
+#else
+#define DOOM_AUDIO_EXCLUSIVE_SINK 0
+#endif
+
 #define ADPCM_BLOCK_SIZE 128
 #define ADPCM_SAMPLES_PER_BLOCK_SIZE 249
 #define LOW_PASS_FILTER
@@ -484,6 +501,7 @@ static void I_Pico_UpdateSound(void)
     // pipeline so both sinks stay bit-identical.
     const int16_t *sp = (const int16_t *)buffer->buffer->bytes;
     const uint32_t n = buffer->sample_count;
+#if DOOM_AUDIO_EXCLUSIVE_SINK
     if (doom_audio_sink == DOOM_SINK_HEADPHONES) {
         for (uint32_t s = 0; s < n; s++) {
             int16_t l = *sp++;
@@ -498,6 +516,18 @@ static void I_Pico_UpdateSound(void)
             audio_i2s_enqueue_sample(0);
         }
     }
+#else
+    // No headphone detect on this board: feed real samples to both sinks.
+    // doom_audio_sink stays at its DOOM_SINK_HDMI default, so the DI-ring
+    // back-pressure gate above still applies, and the I2S ring keeps its
+    // role as the mixer's pacing clock.
+    for (uint32_t s = 0; s < n; s++) {
+        int16_t l = *sp++;
+        int16_t r = *sp++;
+        hstx_push_audio_sample((int)l, (int)r);
+        audio_i2s_enqueue_sample(((uint32_t)(uint16_t)l << 16) | (uint16_t)r);
+    }
+#endif
 }
 
 static void I_Pico_ShutdownSound(void)
@@ -513,15 +543,16 @@ static boolean I_Pico_InitSound(boolean _use_sfx_prefix)
 {
     use_sfx_prefix = _use_sfx_prefix;
 
-    // pico_shared: TLV320 register program + I2S PIO/DMA + immediate
-    // silence pre-fill so BCLK is up and the DAC PLL locks before we push
-    // any real audio. DMA channel must be >= 4 (see pico_hdmi_glue.h) so
-    // audio uses DMA_IRQ_1, keeping DMA_IRQ_0 exclusively for pico_hdmi.
-    audio_i2s_hw_t *i2s = audio_i2s_setup(PICO_AUDIO_I2S_DRIVER_TLV320,
+    // pico_shared: DAC register program (TLV320 boards) + I2S PIO/DMA +
+    // immediate silence pre-fill so BCLK is up and the DAC PLL locks before
+    // we push any real audio. The driver id comes from the board's cflags
+    // header. DMA channel must be >= 4 (see pico_hdmi_glue.h) so audio uses
+    // DMA_IRQ_1, keeping DMA_IRQ_0 exclusively for pico_hdmi.
+    audio_i2s_hw_t *i2s = audio_i2s_setup(DOOM_AUDIO_I2S_DRIVER,
                                           PICO_SOUND_SAMPLE_FREQ,
                                           /*dmachan=*/ 6);
     if (!i2s) {
-        panic("PicoAudio: TLV320 / I2S setup failed.\n");
+        panic("PicoAudio: I2S setup failed (driver %d).\n", DOOM_AUDIO_I2S_DRIVER);
     }
 
     // Speaker stays muted forever on Fruit Jam per project spec: with

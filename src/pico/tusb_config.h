@@ -39,9 +39,17 @@
   #error CFG_TUSB_MCU must be defined
 #endif
 
-// Enable host stack with pio-usb if Pico-PIO-USB
+// Enable host stack. The USB transport follows the board's force-included
+// cflags header: HAS_USBPIO selects Pico-PIO-USB (Fruit Jam, Feather RP2350),
+// otherwise the RP2350's native USB controller is the host port
+// (adafruitdvisd, murmulatorm2). This header reaches every TU — including
+// tinyusb's — so hcd_rp2040.c / hcd_pio_usb.c select themselves off this.
 #define CFG_TUH_ENABLED     1
+#ifdef HAS_USBPIO
 #define CFG_TUH_RPI_PIO_USB 1
+#else
+#define CFG_TUH_RPI_PIO_USB 0
+#endif
 
 #if CFG_TUSB_MCU == OPT_MCU_LPC43XX || CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX
   #define CFG_TUSB_RHPORT0_MODE       (OPT_MODE_HOST | OPT_MODE_HIGH_SPEED)

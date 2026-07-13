@@ -603,6 +603,13 @@ function(add_doom_tiny SUFFIX RENDER_LIB)
         )
         pico_enable_stdio_uart(doom_tiny${SUFFIX} 0)
     endif()
+    if (DOOM_NO_STDIO_UART)
+        # Boards whose default UART pins are wired to something else — e.g.
+        # the Murmulator M2's Wii I2C connector on GPIO 0/1. The matching
+        # cflags header also defines NO_USE_UART=1 for the C side (UART
+        # keyboard input in i_input.c), mirroring the PICO_HACK precedent.
+        pico_enable_stdio_uart(doom_tiny${SUFFIX} 0)
+    endif()
 endfunction()
 
 add_subdirectory(whd_gen)

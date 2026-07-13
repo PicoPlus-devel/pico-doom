@@ -95,6 +95,44 @@ depends on which build you ran. These values come from `TINY_WAD_ADDR` in
 don't need to generate anything for the default build. To convert a different
 WAD, use the `whd_gen` tool — see [README.RP2040.md](README.RP2040.md#whd_gen).
 
+## Other supported boards
+
+Besides the Fruit Jam, three more RP2350 HSTX boards from the
+[pico_shared](https://github.com/fhoedemakers/pico_shared) family are
+supported. Each has its own pin header (`<tag>_cflags.h`) and script pair —
+`<tag>-build.sh` (standalone) and `<tag>-build-forbootloader.sh`
+(pico-bootLoader) — producing `build_<tag>/src/doom_tiny.uf2` and
+`build_<tag>/src/doom1-whx-for-<tag>.uf2` (bootloader builds use
+`build_bl_<tag>/`).
+
+| Tag | HW_CONFIG | Board | USB host | Audio | Legacy pads |
+|-----|-----------|-------|----------|-------|-------------|
+| `adafruitdvisd` | 2 | Pico 2 + Adafruit DVI Breakout + SD breakout (breadboard or PCB) | native USB (OTG adapter) | HDMI + optional PCM5100A on GPIO 26/27 | 2× NES/SNES |
+| `murmulatorm2` | 13 | Murmulator M2 (Pico 2 module) | native USB (OTG adapter) | HDMI + PCM5100A | 2× NES/SNES |
+| `featherrp2350` | 14 | Adafruit Feather RP2350 + TLV320DAC3100 breakout | PIO-USB on GPIO 24/25 (USB Host FeatherWing) | HDMI + TLV320 | — |
+
+Notes:
+
+* **USB stack** — the Fruit Jam and Feather run the USB host on Pico-PIO-USB;
+  the other two use the RP2350's native USB controller (plug gamepads in via
+  an OTG adapter). The transport is fixed at build time: the board header's
+  `HAS_USBPIO` define and the script's `-DENABLE_PIO_USB=` value must agree.
+* **Audio** — boards without the Fruit Jam's headphone-detect pin play audio
+  on HDMI *and* the I2S DAC simultaneously instead of switching sinks.
+* **NES/SNES controllers** — configs 2 and 13 poll two legacy controller
+  ports through the vendored pico_shared `nespad` PIO driver; SNES pads are
+  auto-detected. Mapping: B/A = fire, Y/B = run, SNES A = strafe, SNES X =
+  use, SNES L/R = strafe left/right, Select/Start = previous/next weapon.
+* **Flash size for bootloader builds** — the pico-bootLoader map puts the WHX
+  at `0x10400000`, so Doom-under-bootloader needs **at least 8 MB flash**.
+  The Feather (8 MB) fits; a genuine Pico 2 (4 MB) is standalone-only — the
+  `adafruitdvisd`/`murmulatorm2` bootloader builds are for 16 MB RP2350 clone
+  modules. Standalone builds (WHX at `0x10080000`) fit every board.
+* **Video jitter trade-off** — on the native-USB boards `clk_hstx` is derived
+  from PLL_SYS (PLL_USB must stay at 48 MHz for the USB controller), so very
+  strict HDMI sinks may show occasional sparkles; the PIO-USB boards keep the
+  dedicated 126 MHz PLL_USB HSTX clock.
+
 ## Hardware and I/O
 
 Pin assignments live in [fruitjam_cflags.h](fruitjam_cflags.h).

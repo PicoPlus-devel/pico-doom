@@ -26,6 +26,25 @@
 #include "tusb.h"
 #include "gamepad.h"
 
+// Legacy NES/SNES pads on PIO (pico_shared nespad, vendored under
+// 3rdparty/pico_shared_drivers/nespad). Pin macros come from the board's
+// force-included cflags header; -1 (or absent) disables a port. Their state
+// is merged into the same joystick event as the USB pads in pollGamePads().
+#if defined(NES_PIN_CLK) && NES_PIN_CLK != -1
+#define DOOM_NESPAD 1
+#include "nespad.h"
+#include "hardware/clocks.h"
+#include "pico/time.h"
+#include <stdio.h>
+#else
+#define DOOM_NESPAD 0
+#endif
+#if DOOM_NESPAD && defined(NES_PIN_CLK_1) && NES_PIN_CLK_1 != -1
+#define DOOM_NESPAD_1 1
+#else
+#define DOOM_NESPAD_1 0
+#endif
+
 extern "C" {
 void pico_usb_key_down(int scancode, int shift);
 void pico_usb_key_up(int scancode, int shift);
@@ -85,6 +104,71 @@ namespace
         prev = cur;
     }
 
+#if DOOM_NESPAD
+    // Lazy-init on first poll, then harvest the PIO read started on the
+    // previous poll and immediately kick off the next one (~200 µs per
+    // transfer, one poll cycle of input latency — negligible).
+    //
+    // Two hard-won robustness rules, learned on the adafruitdvisd bring-up:
+    //  - After nespad_begin() the SM runs at a 1 MHz PIO clock, so its
+    //    first instruction — "irq wait 0", set-flag-then-park — lands ~1 µs
+    //    after enable. The 378 MHz core reaches nespad_read_start() first,
+    //    the clear outruns the SM's set, and the release is lost: the SM
+    //    parks forever and the next finish blocks for good. Wait out the
+    //    race before the first start.
+    //  - Never call nespad_read_finish() (blocking FIFO reads) unless
+    //    nespad_read_ready() says data is waiting — a controller port must
+    //    not be able to hang the game loop.
+    uint16_t nesButtons()
+    {
+        static bool inited = false, dead = false;
+        static uint16_t last = 0;
+        static uint64_t not_ready_since = 0;
+        if (dead)
+            return 0;
+        if (!inited)
+        {
+            inited = true;
+            const uint32_t cpu_khz = clock_get_hz(clk_sys) / 1000;
+            bool ok = nespad_begin(0, cpu_khz, NES_PIN_CLK, NES_PIN_DATA, NES_PIN_LAT, NES_PIO);
+#if DOOM_NESPAD_1
+            ok = nespad_begin(1, cpu_khz, NES_PIN_CLK_1, NES_PIN_DATA_1, NES_PIN_LAT_1, NES_PIO_1) && ok;
+#endif
+            if (!ok)
+            {
+                printf("!!! nespad init failed - NES/SNES pads disabled\n");
+                dead = true;
+                return 0;
+            }
+            // Let both SMs (1 MHz PIO clock) reach their irq-wait park
+            // before the first release — see race note above.
+            busy_wait_us(100);
+            nespad_read_start();
+            return 0;
+        }
+        if (!nespad_read_ready())
+        {
+            // Reads complete in ~200 µs; polls are further apart than that.
+            // Transiently not-ready: keep the previous state. Never-ready
+            // means a dead state machine — give up loudly after a second.
+            const uint64_t now = time_us_64();
+            if (not_ready_since == 0)
+                not_ready_since = now;
+            else if (now - not_ready_since > 1000000)
+            {
+                printf("!!! nespad read never completed - NES/SNES pads disabled\n");
+                dead = true;
+            }
+            return last;
+        }
+        not_ready_since = 0;
+        nespad_read_finish();
+        last = nespad_states_ext[0] | nespad_states_ext[1];
+        nespad_read_start();
+        return last;
+    }
+#endif
+
     // Merge all connected pads into one joystick event whose button bit
     // layout matches the joyb* defaults in m_controls.c:
     // 0 fire, 1 strafe, 2 speed/run, 3 use, 4 prev weapon, 5 next weapon.
@@ -111,6 +195,27 @@ namespace
             if (gp.buttons & Button::L) strafemove = -127;
             else if (gp.buttons & Button::R) strafemove = 127;
         }
+
+#if DOOM_NESPAD
+        // nespad_states_ext is in SNES serial order: bit0=B, 1=Y, 2=Select,
+        // 3=Start, 4=Up, 5=Down, 6=Left, 7=Right, 8=A, 9=X, 10=L, 11=R.
+        // Plain NES pads only populate bits 0-7 (as A,B,Select,Start,dpad),
+        // so a NES pad gets A=fire / B=run. Mapping mirrors the USB block
+        // above: primary=fire, secondary=run, SNES A/X=strafe/use.
+        const uint16_t nes = nesButtons();
+        if (nes & 0x0001) buttons |= 1 << 0;      // SNES B / NES A -> fire
+        if (nes & 0x0100) buttons |= 1 << 1;      // SNES A         -> strafe
+        if (nes & 0x0002) buttons |= 1 << 2;      // SNES Y / NES B -> speed/run
+        if (nes & 0x0200) buttons |= 1 << 3;      // SNES X         -> use
+        if (nes & 0x0004) buttons |= 1 << 4;      // Select         -> prev weapon
+        if (nes & 0x0008) buttons |= 1 << 5;      // Start          -> next weapon
+        if (nes & 0x0040) xmove = -127;           // Left
+        else if (nes & 0x0080) xmove = 127;       // Right
+        if (nes & 0x0010) ymove = -127;           // Up
+        else if (nes & 0x0020) ymove = 127;       // Down
+        if (nes & 0x0400) strafemove = -127;      // SNES L
+        else if (nes & 0x0800) strafemove = 127;  // SNES R
+#endif
 
         static int pb, px, py, ps;
         if (buttons != pb || xmove != px || ymove != py || strafemove != ps)
