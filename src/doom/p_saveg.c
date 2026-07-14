@@ -2658,10 +2658,24 @@ const uint8_t *get_end_of_flash(void) {
     return end_of_flash;
 }
 
+// Save slots pack downward from the end of flash; save_flash_limit() is the
+// floor they may not grow past. Classically that is the end of the flash-
+// resident WHD; with WHD_LOAD_FROM_SD the WHD lives in PSRAM (0x11xxxxxx, a
+// different address space), so the boards' cflags headers provide a flash
+// floor instead (SAVE_FLASH_BASE = the now-unused WHX slot base; whd_sdload.c
+// asserts at boot that the program image ends below it).
+static inline const uint8_t *save_flash_limit(void) {
+#if WHD_LOAD_FROM_SD
+    return (const uint8_t *)SAVE_FLASH_BASE;
+#else
+    return whd_map_base + whdheader->size;
+#endif
+}
+
 void P_SaveGameGetExistingFlashSlotAddresses(flash_slot_info_t *slots, int count) {
     const uint8_t *index = get_end_of_flash() - 4;
     int i;
-    const uint8_t *limit = whd_map_base + whdheader->size;
+    const uint8_t *limit = save_flash_limit();
     for(i=0;i<count;i++) {
         bool ok = false;
         if (index[0] == 0x53 && index[1] >= i && index[1] < count) {
@@ -2757,7 +2771,7 @@ boolean __noinline P_SaveGameWriteFlashSlot(int slot, const uint8_t *buffer, uin
             last_slot = i;
         }
     }
-    const uint8_t *limit = whd_map_base + whdheader->size;
+    const uint8_t *limit = save_flash_limit();
     int freespace = (get_end_of_flash() - limit) - used;
 //    printf("SPACE %d, required %d\n", freespace, size + SLOT_OVERHEAD);
     if (freespace < size + SLOT_OVERHEAD) {

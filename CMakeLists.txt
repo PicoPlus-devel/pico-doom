@@ -22,6 +22,17 @@ if(BUILD_FOR_BOOTLOADER)
     add_compile_definitions(BUILD_FOR_BOOTLOADER=1)
 endif()
 
+# When ON, the device target becomes doom_tiny_full (WHD_SUPER_TINY=0): at
+# boot it mounts the SD card and copies /roms/doom/doom.whd (full registered
+# doom.wad converted with `whd_gen doom.wad doom.whd -no-super-tiny`) into
+# PSRAM, then runs the WAD zero-copy from the XIP CS1 window at 0x11000000.
+# The <board>_cflags.h headers see this define (add_compile_definitions runs
+# before their forced -include) and repoint TINY_WAD_ADDR at PSRAM.
+option(WHD_LOAD_FROM_SD "Load the WHD from SD card into PSRAM at boot (doom_tiny_full)" OFF)
+if(WHD_LOAD_FROM_SD)
+    add_compile_definitions(WHD_LOAD_FROM_SD=1)
+endif()
+
 if (PICO_SDK_PATH)
     # we are using git@github.com:liamfraser/tinyusb.git as it has some RP2040 fixes that aren't upstreamed yet
     #set(PICO_TINYUSB_PATH ${CMAKE_CURRENT_LIST_DIR}/3rdparty/tinyusb)

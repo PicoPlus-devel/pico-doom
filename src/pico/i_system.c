@@ -410,7 +410,13 @@ void handle_exit_key_down(int scancode, bool shift, uint8_t *kb_buffer, int kb_l
                     filecount++;
                 }
             }
+#if WHD_LOAD_FROM_SD
+            // The WHD lives in PSRAM, not flash; the flash "used" by DOOM is
+            // the image slot up to the save-region floor (SAVE_FLASH_BASE).
+            int filesize = SAVE_FLASH_BASE - XIP_BASE;
+#else
             int filesize = whd_map_base + whdheader->size - (uint8_t *)XIP_BASE;
+#endif
             scroll_line();
             sprintf(buf, "        %d File(s)                bytes", filecount);
 #else

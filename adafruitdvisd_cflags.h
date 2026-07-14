@@ -15,7 +15,8 @@
 #define PICO_SCANVIDEO_PIXEL_GSHIFT 5
 #define PICO_SCANVIDEO_PIXEL_BSHIFT 0
 #define PICO_SCANVIDEO_SYNC_PIN_BASE 6
-// SD pins (vestigial — no SD driver in this port; kept as wiring documentation)
+// SD pins (SPI0-capable; used by the doom_tiny_full WHD_LOAD_FROM_SD variant,
+// wiring documentation otherwise). SD_TX = MOSI, SD_RX = MISO.
 #define SD_TX 3
 #define SD_RX 4
 #define SD_SCK 2
@@ -107,6 +108,32 @@
 #define TINY_WAD_ADDR 0x10200000
 #else
 #define TINY_WAD_ADDR 0x10080000
+#endif
+
+// --- doom_tiny_full (WHD_LOAD_FROM_SD) --------------------------------------
+// SD SPI instance for the vendored pico_fatfs driver (the SD_* pins above are
+// valid hardware-SPI0 pins) and the PSRAM chip select. A stock Pico 2 has no
+// PSRAM; GPIO 47 = QMI CS1 matches the Pimoroni Pico Plus 2 (a drop-in RP2350B
+// module with 8 MB PSRAM) — required for this variant. Values mirror
+// pico-infonesPlus/pico_shared/BoardConfigs.cmake HW_CONFIG 2.
+#define SDCARD_SPI spi0
+#define SDCARD_PIO pio1
+#define PSRAM_CS_PIN 47
+#if WHD_LOAD_FROM_SD
+// The full WHD is copied from /roms/doom/doom.whd into PSRAM at boot
+// (src/pico/whd_sdload.c) and read zero-copy through the cached XIP CS1
+// window — same address for standalone and bootloader builds.
+#undef TINY_WAD_ADDR
+#define TINY_WAD_ADDR 0x11000000
+// Flash save-game slots pack downward from the end of flash; with the WHD in
+// PSRAM the old "end of WHD" lower bound lives in the wrong address space, so
+// the now-free WHX slot base becomes the floor (whd_sdload.c asserts the app
+// image ends below it).
+#if BUILD_FOR_BOOTLOADER
+#define SAVE_FLASH_BASE 0x10200000
+#else
+#define SAVE_FLASH_BASE 0x10080000
+#endif
 #endif
 
 #endif

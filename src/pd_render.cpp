@@ -2788,7 +2788,7 @@ void pd_end_frame(int wipe_start) {
     sem_release(&core1_do_regular);
 #endif
     draw_regular_columns(0);
-#if !DEMO1_ONLY
+#if !DEMO1_ONLY && !NO_USE_FINALE_CAST
     if (gamestate == GS_FINALE && finalestage == F_STAGE_CAST && !wipestate) {
         // note we do this before core0_done so core1 is still playing music
         int sprite_lump = F_CastSprite();
@@ -2936,7 +2936,7 @@ if(USE_CORE1_FOR_FLATS || USE_CORE1_FOR_REGULAR) {
     if (!pre_wipe_state && !wipestate && gamestate == GS_LEVEL && gametic && !inhelpscreens) {
         HU_Drawer();
     }
-#if !DEMO1_ONLY
+#if !DEMO1_ONLY && !NO_USE_FINALE_CAST
     if (gamestate == GS_FINALE && finalestage == F_STAGE_CAST && !wipestate) {
         F_CastDrawer(); // just draw the text
     }

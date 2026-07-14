@@ -44,6 +44,9 @@
 #if PICO_RP2350
 #include "hardware/structs/qmi.h"
 #endif
+#if PICO_ON_DEVICE && WHD_LOAD_FROM_SD
+#include "pico/whd_sdload.h"
+#endif
 //
 // D_DoomMain()
 // Not a globally visible function, just included for source reference,
@@ -387,6 +390,12 @@ int main(int argc, char **argv)
 #endif
 #if LIB_PICO_STDIO
     stdio_init_all();
+#endif
+#if PICO_ON_DEVICE && WHD_LOAD_FROM_SD
+    // Needs the final clk_sys/clk_peri from above (PSRAM timing and SD SPI
+    // baudrate derive from them); must precede D_DoomMain's W_AddFile, which
+    // reads the WHD directly from the PSRAM window.
+    whd_sdload();
 #endif
 #if PICO_BUILD
     I_Init();

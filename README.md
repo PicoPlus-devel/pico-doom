@@ -82,6 +82,50 @@ under the fixed name `doom1-whx.uf2`, which is the name the bootloader looks up;
 the per-config SD folders keep the different boards' copies from colliding. See
 the pico-bootLoader README for the SD-card layout and `emulators.txt`.
 
+## Full game from SD card (`doom_tiny_full`)
+
+The default build embeds the shareware episode in flash. The **full variant**
+instead loads a complete registered/Ultimate `doom.wad` (all episodes, built
+with `WHD_SUPER_TINY=0`) from the SD card into **PSRAM** at boot and plays it
+from there — the in-game *New Game → Episode* menu then offers every episode,
+and the Episode 3 bunny finale works. Save games still live in flash (in the
+region the WHX used to occupy) and are keyed to the WAD, so saves made with a
+different WAD are refused rather than corrupted.
+
+1. Convert your registered/Ultimate `doom.wad` (input first, output second):
+
+   ```bash
+   build/src/whd_gen/whd_gen doom.wad doom.whd -no-super-tiny
+   ```
+
+   (See [Converting a different WAD](#converting-a-different-wad-whd_gen) for
+   building `whd_gen`.)
+
+2. Copy `doom.whd` to the SD card as `/roms/doom/doom.whd` (FAT32/exFAT).
+
+3. Build and flash the game (standalone or bootloader — no WHX uf2 involved):
+
+   ```bash
+   ./fruitjam-build-full.sh                  # → build_full_fruitjam/src/doom_tiny_full.uf2
+   ./fruitjam-build-full-forbootloader.sh    # → build_bl_full_fruitjam/src/doom_tiny_full.uf2
+   ```
+
+   Every board has the same script pair (`adafruitdvisd-build-full.sh`, …).
+
+At boot the game initializes the PSRAM (QMI CS1, mapped at `0x11000000`),
+mounts the SD card over SPI and copies the WHD into PSRAM (~2 s), logging
+progress on the UART. Any failure — no PSRAM, no card, missing or non-WHD
+file — panics with a descriptive UART message.
+
+**PSRAM requirement per board:**
+
+| Board | PSRAM |
+|-------|-------|
+| Fruit Jam (`fruitjam`) | onboard 8 MB |
+| Pico 2 + DVI (`adafruitdvisd`) | fit a [Pimoroni Pico Plus 2](https://shop.pimoroni.com/products/pimoroni-pico-plus-2) (8 MB PSRAM on GPIO 47) instead of a stock Pico 2 |
+| Murmulator M2 (`murmulatorm2`) | onboard (GPIO 8) |
+| Feather RP2350 (`featherrp2350`) | external APS6404 wired to GPIO 8 |
+
 ## Flash map
 
 The build scripts flash the WAD data (`doom1.whx`) to a fixed address that
