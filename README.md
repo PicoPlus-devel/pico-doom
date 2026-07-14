@@ -98,9 +98,40 @@ These addresses are for the Fruit Jam. The other boards share the standalone map
 (`adafruitdvisd`, `murmulatorm2`) place the WHX at `0x10200000`. See
 [Other supported boards](#other-supported-boards).
 
+## Converting a different WAD (`whd_gen`)
+
 `doom1.whx` (the compressed shareware WAD) is bundled in this repository, so you
-don't need to generate anything for the default build. To convert a different
-WAD, use the `whd_gen` tool — see [README.RP2040.md](README.RP2040.md#whd_gen).
+don't need to generate anything for the default build. To run a different WAD you
+convert it to the RP2350 WHX/WHD format with the `whd_gen` host tool.
+
+`whd_gen` needs none of the game's runtime dependencies — no SDL, no `pico-sdk`,
+just a C/C++ toolchain and `CMake`. Build only that target from a native build
+directory:
+
+```bash
+mkdir build
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make whd_gen
+```
+
+The binary lands at `build/src/whd_gen/whd_gen`. `cmake ..` configures even
+without the SDL2 packages installed — it just skips the desktop `chocolate-doom`
+build. Use a **release** build: the debug build deliberately lowers sound-effect
+encoding quality for speed.
+
+Then convert a WAD (input first, output second):
+
+```bash
+# super-compressed WHX — needed to fit DOOM1.WAD on a 2 MB board:
+build/src/whd_gen/whd_gen DOOM1.WAD doom1.whx
+
+# larger WADs (Ultimate Doom, Doom II) on 8 MB boards — less compression:
+build/src/whd_gen/whd_gen DOOM2.WAD doom2.whd -no-super-tiny
+```
+
+For the deeper story (WHX vs WHD, caveats about non-id WADs) see
+[README.RP2040.md](README.RP2040.md#whd_gen).
 
 ## Other supported boards
 

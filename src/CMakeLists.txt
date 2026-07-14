@@ -1,9 +1,12 @@
 if (PICO_SDK)
     set(BINARIES doom)
-else()
+elseif (HAVE_SDL)
     # comment out heretic/hexen/strife for now, as whilst they may build, how well they work is unclear
 #    set(BINARIES doom heretic hexen strife setup)
     set(BINARIES doom setup)
+else()
+    # No SDL: build only the host tools (whd_gen); the SDL games are skipped.
+    set(BINARIES)
 endif()
 
 add_subdirectory(adpcm-xq)
@@ -46,7 +49,7 @@ endif()
 target_link_libraries(common INTERFACE common_${I_PLATFORM})
 
 # todo chocolate-server also doesn't currently build
-if (NOT PICO_SDK)
+if (NOT PICO_SDK AND HAVE_SDL)
     # Dedicated server (chocolate-server):
 
     set(DEDSERV_FILES
@@ -180,7 +183,7 @@ target_sources(game_deh INTERFACE
 
 target_link_libraries(game_deh INTERFACE game)
 
-if (NOT PICO_SDK)
+if (NOT PICO_SDK AND HAVE_SDL)
     set(EXTRA_LIBS SDL2::SDL2main SDL2::SDL2 SDL2::mixer SDL2::net textscreen pcsound)
     if(SAMPLERATE_FOUND)
         list(APPEND EXTRA_LIBS samplerate::samplerate)
