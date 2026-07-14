@@ -98,17 +98,21 @@
 #define NES_PIN_LAT_1 21
 #define NES_PIO_1 pio1
 
-// Move the WAD base address way up since we have plenty of flash.
+// Move the WAD base address up so it lives past the bootloader app slot.
 // Standalone build: 0x10080000 (image at 0x10000000, WHX right after the
 // 512 KB slot — fits a genuine 4 MB Pico 2).
-// pico-bootLoader build (BUILD_FOR_BOOTLOADER=1): 0x10400000, past the
-// emulator app partition so the WAD survives flashing other emulators.
-// NOTE: 0x10400000 + 1.8 MB WHX needs >= 8 MB flash — a genuine Pico 2
-// (4 MB) is standalone-only; 16 MB RP2350 clone modules work.
+// pico-bootLoader build (BUILD_FOR_BOOTLOADER=1): 0x10200000. This is a Pico 2
+// board, so the whole bootloader map is capped to the 4 MB chip:
+//   0x10000000 bootloader (512 KB)
+//   0x10080000 emulator app slot (1.5 MB, DOOM_APP_SIZE=0x180000 in the build)
+//   0x10200000 doom WHX -> ends 0x103B7018 (~296 KB spare below the 4 MB mark)
+// The WHX sits above the app slot so it survives re-flashing doom (or a smaller
+// emulator). Fits a genuine 4 MB Pico 2. The build script passes matching
+// -DDOOM_APP_SIZE / -DDOOM_FLASH_TOTAL / picotool -o; keep all four in sync.
 // See cmake/BootPartition.cmake for the full flash-map rationale.
 #undef TINY_WAD_ADDR
 #if BUILD_FOR_BOOTLOADER
-#define TINY_WAD_ADDR 0x10400000
+#define TINY_WAD_ADDR 0x10200000
 #else
 #define TINY_WAD_ADDR 0x10080000
 #endif

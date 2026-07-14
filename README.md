@@ -44,7 +44,7 @@ git submodule update --init
 This produces two files:
 
 * `build_fruitjam/src/doom_tiny.uf2` — the game.
-* `build_fruitjam/src/doom1-whx-for-fruitjam.uf2` — the shareware WAD data.
+* `build_fruitjam/src/doom1-whx.uf2` — the shareware WAD data.
 
 Put the Fruit Jam into BOOTSEL mode and copy **both** `.uf2` files to it over
 USB. The device reboots after the first file, so you may need to re-enter the
@@ -73,12 +73,14 @@ the WAD data further up in flash — see [Flash map](#flash-map)). Outputs land 
 a separate tree so the two builds don't clobber each other:
 
 * `build_bl_fruitjam/src/doom_tiny.uf2`
-* `build_bl_fruitjam/src/doom1-whx-for-fruitjam.uf2`
+* `build_bl_fruitjam/src/doom1-whx.uf2`
 
 **Do not** drag these onto the Fruit Jam over USB. Instead place both files on
 the pico-bootLoader SD card under `/emu/<hwconfig>/` and let the menu flash them
-(Doom's main image plus its WHX companion). See the pico-bootLoader README for
-the SD-card layout and `emulators.txt`.
+(Doom's main image plus its WHX companion). Every board's script emits the WAD
+under the fixed name `doom1-whx.uf2`, which is the name the bootloader looks up;
+the per-config SD folders keep the different boards' copies from colliding. See
+the pico-bootLoader README for the SD-card layout and `emulators.txt`.
 
 ## Flash map
 
@@ -91,6 +93,11 @@ depends on which build you ran. These values come from `TINY_WAD_ADDR` in
 | Standalone (`fruitjam-build.sh`) | `0x10000000` | `0x10080000` |
 | Bootloader (`fruitjam-build-forbootloader.sh`) | `0x10080000` | `0x10400000` |
 
+These addresses are for the Fruit Jam. The other boards share the standalone map
+(WHX at `0x10080000`); their **bootloader** maps differ — the 4 MB Pico 2 boards
+(`adafruitdvisd`, `murmulatorm2`) place the WHX at `0x10200000`. See
+[Other supported boards](#other-supported-boards).
+
 `doom1.whx` (the compressed shareware WAD) is bundled in this repository, so you
 don't need to generate anything for the default build. To convert a different
 WAD, use the `whd_gen` tool — see [README.RP2040.md](README.RP2040.md#whd_gen).
@@ -102,7 +109,7 @@ Besides the Fruit Jam, three more RP2350 HSTX boards from the
 supported. Each has its own pin header (`<tag>_cflags.h`) and script pair —
 `<tag>-build.sh` (standalone) and `<tag>-build-forbootloader.sh`
 (pico-bootLoader) — producing `build_<tag>/src/doom_tiny.uf2` and
-`build_<tag>/src/doom1-whx-for-<tag>.uf2` (bootloader builds use
+`build_<tag>/src/doom1-whx.uf2` (bootloader builds use
 `build_bl_<tag>/`).
 
 | Tag | HW_CONFIG | Board | USB host | Audio | Legacy pads |
@@ -123,11 +130,13 @@ Notes:
   ports through the vendored pico_shared `nespad` PIO driver; SNES pads are
   auto-detected. Mapping: B/A = fire, Y/B = run, SNES A = strafe, SNES X =
   use, SNES L/R = strafe left/right, Select/Start = previous/next weapon.
-* **Flash size for bootloader builds** — the pico-bootLoader map puts the WHX
-  at `0x10400000`, so Doom-under-bootloader needs **at least 8 MB flash**.
-  The Feather (8 MB) fits; a genuine Pico 2 (4 MB) is standalone-only — the
-  `adafruitdvisd`/`murmulatorm2` bootloader builds are for 16 MB RP2350 clone
-  modules. Standalone builds (WHX at `0x10080000`) fit every board.
+* **Flash size for bootloader builds** — the bootloader map is sized per board.
+  Fruit Jam (16 MB) and Feather (8 MB) place the WHX at `0x10400000`. The two
+  Pico 2 boards (`adafruitdvisd`, `murmulatorm2`) cap the map to the 4 MB chip:
+  a 1.5 MB app slot at `0x10080000` and the WHX at `0x10200000` (ending
+  ~`0x103B7900`, comfortably under the 4 MB mark), so their bootloader builds
+  run on a **genuine 4 MB Pico 2** as well as larger clone modules. Standalone
+  builds (WHX at `0x10080000`) fit every board.
 * **Video jitter trade-off** — on the native-USB boards `clk_hstx` is derived
   from PLL_SYS (PLL_USB must stay at 48 MHz for the USB controller), so very
   strict HDMI sinks may show occasional sparkles; the PIO-USB boards keep the

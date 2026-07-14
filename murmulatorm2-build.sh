@@ -32,4 +32,4 @@ fi
 # WHX is flashed at 0x10080000, matching the non-bootloader TINY_WAD_ADDR in
 # murmulatorm2_cflags.h. Fits a genuine 4 MB Pico 2. (The bootloader build
 # uses a different map -- see murmulatorm2-build-forbootloader.sh.)
-"$PICOTOOL" uf2 convert doom1.whx -t bin $BUILD/src/doom1-whx-for-${TAG}.uf2 -o 0x10080000 --family data
+"$PICOTOOL" uf2 convert doom1.whx -t bin $BUILD/src/doom1-whx.uf2 -o 0x10080000 --family data

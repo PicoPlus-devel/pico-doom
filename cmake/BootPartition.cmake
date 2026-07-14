@@ -23,6 +23,11 @@ if(DEFINED _DOOM_BOOTPARTITION_INCLUDED)
 endif()
 set(_DOOM_BOOTPARTITION_INCLUDED 1)
 
+# Defaults below are the 16 MB Fruit Jam / 8 MB Feather map (WHX at 0x10400000).
+# The 4 MB Pico 2 boards (adafruitdvisd, murmulatorm2) cap the map to their chip
+# by overriding DOOM_APP_SIZE (1.5 MB) and DOOM_FLASH_TOTAL (4 MB) via -D on the
+# cmake line -- see their *-build-forbootloader.sh. These are CACHE vars, so a
+# command-line -D wins over the set() defaults here; don't change the defaults.
 set(DOOM_XIP_BASE     "0x10000000" CACHE STRING "RP2350 XIP flash base")
 set(DOOM_APP_BASE     "0x10080000" CACHE STRING "Bootloader app-partition base")
 set(DOOM_APP_SIZE     "0x300000"   CACHE STRING "Bytes reserved for doom_tiny (3 MB, up to 0x10380000)")
