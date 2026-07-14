@@ -174,6 +174,22 @@ build/src/whd_gen/whd_gen DOOM1.WAD doom1.whx
 build/src/whd_gen/whd_gen DOOM2.WAD doom2.whd -no-super-tiny
 ```
 
+### Windows executables
+
+[src/whd_gen/build_native.sh](src/whd_gen/build_native.sh) builds `whd_gen`
+without CMake, and can cross-compile standalone Windows executables from
+Linux/WSL with the MinGW-w64 toolchain:
+
+```bash
+sudo apt install g++-mingw-w64-x86-64   # or g++-mingw-w64-i686 for 32-bit
+src/whd_gen/build_native.sh win64       # -> src/whd_gen/whd_gen-win64.exe
+src/whd_gen/build_native.sh win32       # -> src/whd_gen/whd_gen-win32.exe
+```
+
+The `.exe` is statically linked: copy it to any Windows machine and run it from
+a Command Prompt, no DLLs required. On Windows itself the same script also
+works in an [MSYS2](https://www.msys2.org/) MinGW shell (`./build_native.sh`).
+
 For the deeper story (WHX vs WHD, caveats about non-id WADs) see
 [README.RP2040.md](README.RP2040.md#whd_gen).
 

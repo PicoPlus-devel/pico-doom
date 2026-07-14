@@ -9,21 +9,68 @@
 # nothing but a C/C++ toolchain.
 #
 # Usage:
-#   ./build_native.sh            # builds ./whd_gen
+#   ./build_native.sh            # builds ./whd_gen for this machine
+#   ./build_native.sh win64      # MinGW cross-build -> ./whd_gen-win64.exe
+#   ./build_native.sh win32      # MinGW cross-build -> ./whd_gen-win32.exe
 #   CXX=clang++ CC=clang ./build_native.sh
+#
+# The Windows targets need the MinGW-w64 cross toolchain, e.g. on Debian/
+# Ubuntu: sudo apt install g++-mingw-w64-x86-64 (win64) or
+# g++-mingw-w64-i686 (win32). The resulting .exe is statically linked and
+# runs standalone. The script also works as-is in an MSYS2/MinGW shell on
+# Windows (plain ./build_native.sh there).
 #
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # src/whd_gen
 src="$(cd "$here/.." && pwd)"                           # src
 
-CC="${CC:-cc}"
-CXX="${CXX:-c++}"
+target="${1:-native}"
+case "$target" in
+    native)
+        cc_default=cc
+        cxx_default=c++
+        out="$here/whd_gen"
+        ldflags=()
+        ;;
+    win64)
+        cc_default=x86_64-w64-mingw32-gcc
+        cxx_default=x86_64-w64-mingw32-g++
+        out="$here/whd_gen-win64.exe"
+        ldflags=(-static -s)
+        ;;
+    win32)
+        cc_default=i686-w64-mingw32-gcc
+        cxx_default=i686-w64-mingw32-g++
+        out="$here/whd_gen-win32.exe"
+        ldflags=(-static -s)
+        ;;
+    *)
+        echo "usage: $0 [native|win64|win32]" >&2
+        exit 1
+        ;;
+esac
+
+CC="${CC:-$cc_default}"
+CXX="${CXX:-$cxx_default}"
 CFLAGS="${CFLAGS:--O2}"
 CXXFLAGS="${CXXFLAGS:--O2}"
 
+if ! command -v "$CXX" >/dev/null 2>&1; then
+    echo "error: $CXX not found" >&2
+    case "$target" in
+        win64) echo "hint: sudo apt install g++-mingw-w64-x86-64" >&2 ;;
+        win32) echo "hint: sudo apt install g++-mingw-w64-i686" >&2 ;;
+    esac
+    exit 1
+fi
+
 inc=(-I"$src" -I"$src/doom" -I"$here" -I"$src/adpcm-xq")
 def=(-DIS_WHD_GEN=1)
+if [[ "$target" != native ]]; then
+    # C99-conformant printf on msvcrt-based MinGW toolchains.
+    def+=(-D__USE_MINGW_ANSI_STDIO=1)
+fi
 
 obj_dir="$(mktemp -d)"
 trap 'rm -rf "$obj_dir"' EXIT
@@ -56,7 +103,7 @@ for cc in \
     objs+=("$o")
 done
 
-echo "LD  $here/whd_gen"
-"$CXX" $CXXFLAGS "${objs[@]}" -o "$here/whd_gen"
+echo "LD  $out"
+"$CXX" $CXXFLAGS "${objs[@]}" ${ldflags[@]+"${ldflags[@]}"} -o "$out"
 
-echo "Built $here/whd_gen"
+echo "Built $out"

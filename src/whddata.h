@@ -6,6 +6,9 @@
 #if !USE_WHD
 typedef char textureorflatname_def_t[9];
 typedef const char* textureorflatname_t;
+#ifndef __STRING
+#define __STRING(x) #x /* glibc-ism; missing on MinGW and other non-glibc hosts */
+#endif
 #define TEXTURE_NAME(x) __STRING(x)
 #define TEXTURE_NAME_NONE ""
 #define FLAT_NAME(x) __STRING(x)

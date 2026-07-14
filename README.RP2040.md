@@ -187,6 +187,19 @@ cmake -DPICO_PLATFORM=host -DPICO_SDK_PATH=/path/to/pico-sdk -DPICO_EXTRAS_PATH=
 `doom1.whx` is includd in this repository, otherwise you need to build `whd_gen` using the regular native build 
 instructions above.
 
+Alternatively, `src/whd_gen/build_native.sh` builds just `whd_gen` with nothing but a C/C++ toolchain — no CMake, 
+no SDL. The same script can also cross-compile standalone Windows executables using the MinGW-w64 toolchain 
+(`sudo apt install g++-mingw-w64-x86-64` and/or `g++-mingw-w64-i686` on Debian/Ubuntu):
+
+```bash
+src/whd_gen/build_native.sh          # native build       -> src/whd_gen/whd_gen
+src/whd_gen/build_native.sh win64    # 64-bit Windows exe -> src/whd_gen/whd_gen-win64.exe
+src/whd_gen/build_native.sh win32    # 32-bit Windows exe -> src/whd_gen/whd_gen-win32.exe
+```
+
+The Windows executables are statically linked, so they run on any Windows machine without extra DLLs. On Windows 
+itself the script also works from an [MSYS2](https://www.msys2.org/) MinGW shell.
+
 To generate a WHX file (you must use this to convert DOOM1.WAD to run on a 2M Raspberry Pi Pico)
 
 ```bash
