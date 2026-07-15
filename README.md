@@ -288,8 +288,8 @@ Any "boot mouse" should work.
 
 Supported controllers:
 
+* Original SNES/NES gamepads.
 * SNES/NES "MantaPad" clones, e.g. [Adafruit #6285](https://www.adafruit.com/product/6285)
-  (on the NES variant, press **Y** once to switch it to SNES mode).
 * Sony DualShock 4, DualSense, PlayStation Classic.
 * Xbox 360 / One / Series (XInput), and 8BitDo pads in XInput mode.
 * Sega Genesis / Mega Drive Mini, Retro-bit MD Arcade Pad.
