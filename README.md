@@ -1,10 +1,16 @@
-# Doom on the Adafruit Fruit Jam
+# pico-doom — Doom on RP2350 boards with HSTX video
 
-A port of **Doom** to the [Adafruit Fruit Jam](https://www.adafruit.com/product/6200)
-(RP2350B). It runs the full shareware `DOOM1.WAD` from flash, drives an HDMI
-display over HSTX, plays music and sound effects — over that same HDMI link *or*
-through the onboard TLV320 DAC to speaker/headphones — and takes input from USB
-keyboards, mice, and gamepads.
+A port of **Doom** to the RP2350. The reference board is the
+[Adafruit Fruit Jam](https://www.adafruit.com/product/6200) (RP2350B); three more
+HSTX boards build from the same tree — Pico 2 with the Adafruit DVI Breakout, the
+Murmulator M2, and the Adafruit Feather RP2350 (see
+[Other supported boards](#other-supported-boards)).
+
+It runs the full shareware `DOOM1.WAD` from flash, drives an HDMI display over
+HSTX, plays music and sound effects — over that same HDMI link *or* through an
+I2S DAC (TLV320DAC3100 or PCM5100A) to speaker/headphones — and takes input from
+USB keyboards, mice, and gamepads, plus NES/SNES pads on the boards that have
+those ports.
 
 The port descends from Graham Sanderson's
 [rp2040-doom](https://github.com/kilograham/rp2040-doom) — which fits Doom into
@@ -18,7 +24,8 @@ see [README-chocolate.md](README-chocolate.md).
 
 **Hardware**
 
-* An Adafruit Fruit Jam (RP2350B) board.
+* An Adafruit Fruit Jam (RP2350B) board — or one of the three
+  [other supported boards](#other-supported-boards).
 * An HDMI display and cable.
 * At least one USB input device — a keyboard, a mouse, and/or a supported
   gamepad (see [Controls](#controls)).
