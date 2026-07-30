@@ -19,7 +19,7 @@
 #include "pico.h"
 #include "pico/stdio.h"
 #if PICO_ON_DEVICE
-#include "hardware/watchdog.h"
+// The exit screen's DIR command reports the save-game flash slots.
 #include "doomtype.h"
 #include "doom/p_saveg.h"
 #endif
@@ -278,8 +278,9 @@ void I_BindVariables(void)
 //
 
 #include "pico/sem.h"
-#include "whddata.h"
 #include "piconet.h"
+#include "whddata.h"
+#include "doom_boot.h"
 
 int8_t at_exit_screen;
 
@@ -293,14 +294,6 @@ static void scroll_line() {
         memset(text_screen_data + entry_line * 160, 0, 160);
     } else
         entry_line++;
-}
-
-static void restart() {
-#if PICO_ON_DEVICE
-    watchdog_reboot(0, 0, 1);
-#else
-    exit(0);
-#endif
 }
 
 static void write_text_line(const char *txt) {
@@ -354,7 +347,7 @@ void handle_exit_key_down(int scancode, bool shift, uint8_t *kb_buffer, int kb_l
             foo++;
         }
         *foo++ = 0;
-        if (!strcmp((char*)cmd, "DOOM") || !strcmp((char*)cmd, "DOOM.EXE")) restart();
+        if (!strcmp((char*)cmd, "DOOM") || !strcmp((char*)cmd, "DOOM.EXE")) doom_restart_game();
         else if (!strcmp((char*)kb_buffer, "CLS")) {
             memset(text_screen_data, 0, 80 * 25 * 2);
             entry_line = 0;
@@ -473,35 +466,69 @@ void handle_exit_key_down(int scancode, bool shift, uint8_t *kb_buffer, int kb_l
 }
 
 uint8_t *exit_screen_kb_buffer_80;
+
+// Under the bootloader there is no exit screen, so the only thing left to wait
+// for is the quit sound M_QuitResponse() started — vanilla follows it with
+// I_WaitVBL(105) (~1.5 s), which is compiled out under PICO_DOOM.
+#define EXIT_LINGER_MS 1500
+
+// Pump everything that still has to keep running while we are on the way out:
+// the sound mixer (so the quit sound plays) and USB HID (so the exit screen's
+// keyboard works).
+static void exit_screen_pump(void) {
+#if PICO_ON_DEVICE
+    // no idea why the default timeout of 50 ms is NOT working here, hack hack hack away!
+    I_GetEventTimeout(1000);
+#if USB_SUPPORT
+    tuh_task();
+    pico_usb_hid_poll();
+#endif
+#endif
+    I_UpdateSound();
+}
+
 void __attribute((noreturn)) I_Quit (void)
 {
     extern void D_Endoom();
 #if USE_PICO_NET
     piconet_stop();
 #endif
-    D_Endoom();
+    // Launched from the pico-bootLoader: the picker is where we are headed, so
+    // skip ENDOOM and the DOS prompt entirely (that also avoids caching the
+    // ENDOOM lump for nothing) and just let the quit sound finish.
+    bool to_loader = doom_launched_from_bootloader();
+
+    if (!to_loader) {
+        D_Endoom();
+    }
     I_StopSong();
     while (!sem_available(&display_frame_freed)) {
         I_UpdateSound();
     }
     sem_acquire_blocking(&display_frame_freed);
     next_video_type = VIDEO_TYPE_TEXT;
+    // One release is enough: new_frame_stuff() only re-latches display_video_type
+    // when render_frame_ready is available, so core1 holds this frame from here on.
     sem_release(&render_frame_ready);
+
+    if (to_loader) {
+        // Signed difference so the ~24.8 day wrap of I_GetTimeMS() is harmless.
+        int deadline = I_GetTimeMS() + EXIT_LINGER_MS;
+        while (deadline - I_GetTimeMS() > 0) {
+            exit_screen_pump();
+        }
+        doom_reboot_to_loader();
+    }
+
+    // Standalone: hand the screen over to the fake DOS prompt and stay there.
+    // The way out is the user typing DOOM, which resets and runs the game again.
     at_exit_screen = 1;
     I_StartTextInput(0,0,0,0);
     uint8_t buffer[80];
     buffer[0] = 0;
     exit_screen_kb_buffer_80 = buffer; // fine as this function never returns
     while (true) {
-#if PICO_ON_DEVICE
-        // no idea why the default timeout of 50 ms is NOT working here, hack hack hack away!
-        I_GetEventTimeout(1000);
-#if USB_SUPPORT
-        tuh_task();
-        pico_usb_hid_poll();
-#endif
-#endif
-        I_UpdateSound();
+        exit_screen_pump();
     }
 }
 

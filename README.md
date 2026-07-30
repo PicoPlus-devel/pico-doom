@@ -82,6 +82,29 @@ under the fixed name `doom1-whx.uf2`, which is the name the bootloader looks up;
 the per-config SD folders keep the different boards' copies from colliding. See
 the pico-bootLoader README for the SD-card layout and `emulators.txt`.
 
+### Quitting
+
+Selecting *Quit Game* (or pressing F10 and confirming) does one of two things,
+decided at runtime — the same binary behaves correctly either way:
+
+* **Launched from the pico-bootLoader** — the ENDOOM screen is skipped, the quit
+  sound is allowed to finish, and the board resets back into the emulator
+  picker. Doom explicitly asks the loader to skip its resume jump (watchdog
+  scratch register 7, the same handshake as `pico_shared`'s
+  `Frens::rebootToBootloader()`), so you get the picker and not a relaunch.
+* **Standalone** — the ENDOOM screen appears, followed by a fake DOS prompt.
+  `DIR`, `CLS` and `CD` work; typing `DOOM` (or `DOOM.EXE`) and pressing Return
+  restarts the game. This needs a USB keyboard.
+
+The UART reports which path was taken. Detection is
+`watchdog_hw->scratch[6] == 0xB007ED01`, set by the loader just before it jumps
+to the application — a cold reset or a BOOTSEL flash clears it, so a
+BOOTSEL-flashed image correctly counts as standalone.
+
+The exit screen is a true 80×25 VGA text mode: 8×16 glyphs, the full CP437 set
+and the 16-colour attribute byte including blink, rendered as 640×400 centred in
+the 640×480 HDMI signal.
+
 ## Full game from SD card (`doom_tiny_full`)
 
 The default build embeds the shareware episode in flash. The **full variant**

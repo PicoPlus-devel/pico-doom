@@ -1,5 +1,6 @@
 add_library(common_pico INTERFACE)
 target_sources(common_pico INTERFACE
+        ${CMAKE_CURRENT_LIST_DIR}/doom_boot.c
         ${CMAKE_CURRENT_LIST_DIR}/i_glob.c
         ${CMAKE_CURRENT_LIST_DIR}/i_input.c
         ${CMAKE_CURRENT_LIST_DIR}/i_system.c
@@ -40,7 +41,9 @@ target_compile_definitions(common_pico INTERFACE
         PICO_USE_STACK_GUARDS=0 # todo we can actually use these sensibly, but right now we do overflow!
 )
 
-target_link_libraries(common_pico INTERFACE pico_stdlib pico_multicore)
+# hardware_watchdog: doom_boot.c resets the chip on quit (it only arrived
+# transitively before).
+target_link_libraries(common_pico INTERFACE pico_stdlib pico_multicore hardware_watchdog)
 
 if (USE_HSTX)
     target_compile_definitions(common_pico INTERFACE USE_HSTX=1)

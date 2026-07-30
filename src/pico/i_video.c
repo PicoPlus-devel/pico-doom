@@ -65,15 +65,14 @@
 #include "hardware/structs/xip_ctrl.h"
 #endif
 
+// SUPPORT_TEXT / SUPPORT_TEXT_SCANVIDEO and the TXT_* geometry come from
+// i_video.h, so i_system.c and the two renderers all agree.
 #if USE_HSTX
-#undef SUPPORT_TEXT
-#define SUPPORT_TEXT 0
 // pico_hdmi is configured for RGB555. Palette lookups produce 5-5-5 packed
 // as (R<<10)|(G<<5)|B; bit 15 stays zero.
 #define PICO_SCANVIDEO_PIXEL_FROM_RGB8(r,g,b) ((((r) >> 3) << 10) | (((g) >> 3) << 5) | ((b) >> 3))
 #else
 #include "video_doom.pio.h"
-#define SUPPORT_TEXT 1
 #endif
 
 #define YELLOW_SUBMARINE 0
@@ -84,7 +83,6 @@ typedef struct __packed {
     const uint8_t w;
     const uint8_t h;
 } txt_font_t;
-#define TXT_SCREEN_W 80
 #include "fonts/normal.h"
 
 static uint16_t ega_colors[] = {
@@ -155,7 +153,9 @@ semaphore_t render_frame_ready, display_frame_freed;
 semaphore_t core1_launch;
 
 uint8_t *text_screen_data;
+#if SUPPORT_TEXT_SCANVIDEO
 static uint32_t *text_scanline_buffer_start;
+#endif
 static uint8_t *text_screen_cpy;
 static uint8_t *text_font_cpy;
 
@@ -405,6 +405,7 @@ static void scanline_func_none(uint32_t *dest, int scanline) {
 }
 
 #if SUPPORT_TEXT
+#if SUPPORT_TEXT_SCANVIDEO
 void check_text_buffer(scanvideo_scanline_buffer_t *buffer) {
 #if PICO_ON_DEVICE
     if (buffer->data < text_scanline_buffer_start || buffer->data >= text_scanline_buffer_start + TEXT_SCANLINE_BUFFER_TOTAL_WORDS) {
@@ -429,19 +430,20 @@ static void finish_text_buffer(scanvideo_scanline_buffer_t *buffer) {
     buffer->data[SCREENWIDTH + 2] = video_doom_offset_end_of_scanline_skip_ALIGN;
     buffer->data_used = SCREENWIDTH + 3;
 }
+#endif // SUPPORT_TEXT_SCANVIDEO
 
-static void __not_in_flash_func(render_text_mode_half_scanline)(scanvideo_scanline_buffer_t *buffer, const uint8_t *text_data, int yoffset) {
-    uint16_t * p = (uint16_t *)(buffer->data + 1);
-//    memset(buffer->data + 1, 0, 1280);
-//    uint x = scanline * 2 + yoffset;
-//    buffer->data[1 + (x/2)] = x&1 ? 0xffff0000 : 0xffff;
+// Expand one font row of the 80-column text screen into 640 RGB555 pixels at p.
+// Destination-agnostic so both renderers can share it: scanvideo passes its
+// enlarged scanline buffer, HSTX passes the driver's 640-pixel line buffer.
+// frame_no drives the attribute blink bit and is the caller's frame counter.
+static void __not_in_flash_func(render_text_mode_half_scanline)(uint16_t *p, const uint8_t *text_data, int yoffset, uint frame_no) {
 #if 1
-    uint blink = scanvideo_frame_number(buffer->scanline_id) & 16;
+    uint blink = frame_no & 16;
     // not going to change so just hard code
 //    assert(normal_font.w == 8);
 //    assert(normal_font.h == 16);
     const uint8_t *font_base = text_font_cpy + yoffset;
-    for(uint i=0;i<80;i++) {
+    for(uint i=0;i<TXT_SCREEN_W;i++) {
         uint fg = text_data[1] & 0xf;
         uint bg = (text_data[1] >> 4) & 0xf;
         if (bg & 0x8) {
@@ -534,19 +536,21 @@ static void __not_in_flash_func(render_text_mode_half_scanline)(scanvideo_scanli
 #endif
 }
 
+#if SUPPORT_TEXT_SCANVIDEO
 static void __noinline render_text_mode_scanline(scanvideo_scanline_buffer_t *buffer, int scanline) {
 #if 1
     const uint8_t *text_data = text_screen_data;
     assert(text_data);
-    text_data += TXT_SCREEN_W * 2 * (scanline/8);
+    text_data += TXT_ROW_BYTES * (scanline/8);
+    uint frame_no = scanvideo_frame_number(buffer->scanline_id);
     check_text_buffer(buffer);
-    render_text_mode_half_scanline(buffer, text_data, (scanline & 7u)*2 );
+    render_text_mode_half_scanline((uint16_t *)(buffer->data + 1), text_data, (scanline & 7u)*2, frame_no);
     finish_text_buffer(buffer);
     if (buffer->link) {
         buffer->link_after = 2;
         buffer->link->link_after = 0;
         check_text_buffer(buffer->link);
-        render_text_mode_half_scanline(buffer->link, text_data, (scanline & 7u)*2 + 1);
+        render_text_mode_half_scanline((uint16_t *)(buffer->link->data + 1), text_data, (scanline & 7u)*2 + 1, frame_no);
         finish_text_buffer(buffer->link);
     }
 #else
@@ -572,7 +576,8 @@ static void __noinline render_text_mode_scanline(scanvideo_scanline_buffer_t *bu
     buffer->data_used = SCREENWIDTH / 2 + 3;
 #endif
 }
-#endif
+#endif // SUPPORT_TEXT_SCANVIDEO
+#endif // SUPPORT_TEXT
 
 static void __scratch_x("scanlines") scanline_func_double(uint32_t *dest, int scanline) {
     if (scanline < MAIN_VIEWHEIGHT) {
@@ -1040,8 +1045,8 @@ void __no_inline_not_in_flash_func(new_frame_stuff)() {
 
 
 #if USE_HSTX
-#if SUPPORT_TEXT
-#error incompatible
+#if SUPPORT_TEXT_SCANVIDEO
+#error the linked-scanline-buffer text path is scanvideo-only
 #endif
 
 // Intermediate 320×200 RGB555 framebuffer. Filled once per frame by the
@@ -1066,8 +1071,18 @@ static uint16_t (*doom_rgb_fb)[SCREENWIDTH];
 // palette conversion without holding up DMA IRQ.
 static volatile bool doom_fb_fill_pending = false;
 
+#if SUPPORT_TEXT
+// Frame counter for the text screen's attribute blink bit. On scanvideo that
+// comes from scanvideo_frame_number(); here we just count vsyncs, so the
+// `& 16` in the renderer gives the same ~1.9 Hz cadence at 60 Hz.
+static uint32_t doom_hstx_frame_no;
+#endif
+
 void __not_in_flash_func(doom_hstx_vsync_cb)(void) {
     doom_fb_fill_pending = true;
+#if SUPPORT_TEXT
+    doom_hstx_frame_no++;
+#endif
 }
 
 // Background task — runs in core1's main loop (video_output_core1_run,
@@ -1083,6 +1098,12 @@ void __not_in_flash_func(doom_hstx_bg_task)(void) {
     new_frame_stuff();
 
     if (!doom_rgb_fb) return;  // I_InitGraphics not finished yet
+#if SUPPORT_TEXT
+    // The text screen is generated straight into the 640-pixel line buffer by
+    // the scanline callback, which never looks at doom_rgb_fb — so there is
+    // nothing to prepare here (and no point blanking 200 rows every frame).
+    if (display_video_type == VIDEO_TYPE_TEXT) return;
+#endif
 #if USE_INTERP
     // Per-core interp state; no one else on core1 touches it.
     need_save = false;
@@ -1102,12 +1123,38 @@ void __not_in_flash_func(doom_hstx_bg_task)(void) {
     }
 }
 
+#if SUPPORT_TEXT
+// The text screen is 80x25 cells of 8x16 = 640x400, which lands pixel-exact on
+// the 640-pixel line buffer with no horizontal scaling at all — one character
+// column per 8 output pixels. Centre those 400 lines in the 480-line frame and
+// black out the 40-line band above and below, i.e. exactly how a VGA card
+// letterboxes 640x400 text inside a 640x480 signal.
+#define TEXT_TOP_LINE ((MODE_V_ACTIVE_LINES - TXT_SCREEN_H * TXT_CHAR_H) / 2)
+static_assert(TXT_SCREEN_W * TXT_CHAR_W == MODE_H_ACTIVE_PIXELS, "text screen must be exactly one line buffer wide");
+static_assert(TEXT_TOP_LINE >= 0, "text screen taller than the video mode");
+#endif
+
 // Scanline callback — runs in DMA_IRQ_0 on core1 once per active output
-// line. Maps 480 output lines onto 200 source rows (row = active_line *
-// 200 / 480) and h-doubles the pre-rendered doom_rgb_fb row into the
-// 640-pixel destination. No palette work here → ~13 µs, well under the
-// 31.7 µs line budget.
+// line. For gameplay it maps 480 output lines onto 200 source rows (row =
+// active_line * 200 / 480) and h-doubles the pre-rendered doom_rgb_fb row into
+// the 640-pixel destination. No palette work here → ~13 µs, well under the
+// 31.7 µs line budget. For the exit screen it generates 640 distinct pixels
+// from the 8x16 font instead (~6 µs; font and text screen are both in RAM, so
+// there are no XIP stalls).
 void __not_in_flash_func(doom_hstx_scanline_cb)(uint32_t v_scanline, uint32_t active_line, uint32_t *line_buffer) {
+#if SUPPORT_TEXT
+    if (display_video_type == VIDEO_TYPE_TEXT && text_screen_data) {
+        int y = (int)active_line - TEXT_TOP_LINE;
+        if (y < 0 || y >= TXT_SCREEN_H * TXT_CHAR_H) {
+            memset(line_buffer, 0, MODE_H_ACTIVE_PIXELS * sizeof(uint16_t));
+        } else {
+            render_text_mode_half_scanline((uint16_t *)line_buffer,
+                                           text_screen_data + TXT_ROW_BYTES * (y / TXT_CHAR_H),
+                                           y % TXT_CHAR_H, doom_hstx_frame_no);
+        }
+        return;
+    }
+#endif
     if (active_line >= 480 || !doom_rgb_fb) {
         memset(line_buffer, 0, MODE_H_ACTIVE_PIXELS * sizeof(uint16_t));
         return;
@@ -1124,7 +1171,7 @@ void __not_in_flash_func(doom_hstx_scanline_cb)(uint32_t v_scanline, uint32_t ac
 
 #else
 void __scratch_x("scanlines") fill_scanlines() {
-#if SUPPORT_TEXT
+#if SUPPORT_TEXT_SCANVIDEO
     struct scanvideo_scanline_buffer *buffer = scanvideo_begin_scanline_generation_linked(display_video_type == VIDEO_TYPE_TEXT ? 2 : 1, false);
 #else
     struct scanvideo_scanline_buffer *buffer = scanvideo_begin_scanline_generation(false);
@@ -1160,7 +1207,7 @@ void __scratch_x("scanlines") fill_scanlines() {
             buffer->data_used = SCREENWIDTH / 2 + 3;
             DEBUG_PINS_CLR(scanline_copy, 1);
         } else {
-#if SUPPORT_TEXT
+#if SUPPORT_TEXT_SCANVIDEO
             render_text_mode_scanline(buffer, scanline);
 #else
             memset(buffer->data + 1, 0, SCREENWIDTH * 2);
@@ -1173,7 +1220,7 @@ void __scratch_x("scanlines") fill_scanlines() {
 #endif
         }
         scanvideo_end_scanline_generation(buffer);
-#if SUPPORT_TEXT
+#if SUPPORT_TEXT_SCANVIDEO
         buffer = scanvideo_begin_scanline_generation_linked(display_video_type == VIDEO_TYPE_TEXT ? 2 : 1, false);
 #else
         buffer = scanvideo_begin_scanline_generation(false);
@@ -1363,36 +1410,49 @@ int I_GetPaletteIndex(int r, int g, int b)
 #if !NO_USE_ENDDOOM
 void I_Endoom(byte *endoom_data) {
 #if SUPPORT_TEXT
+    // Carved out of the renderer's work area (list_buffer, ~88 KB of existing
+    // .bss) rather than allocated: by the time we get here the renderer is done
+    // for good, and the zone is both nearly full and off-limits to core1.
+#define TXT_CELLS (TXT_SCREEN_W * TXT_SCREEN_H)
+#define TXT_SCREEN_BYTES (TXT_CELLS * 2)
+#define TXT_FONT_BYTES (256 * TXT_CHAR_H)
+    // Decode scratch: 512 tmp_buf + 1024 decoder table, later reused as the
+    // staging copy for the char/attr de-interleave.
+#define TXT_SCRATCH_BYTES TXT_SCREEN_BYTES
+#if SUPPORT_TEXT_SCANVIDEO
+    // Scanvideo also needs the enlarged scanline buffers, and they are big
+    // enough to double as the decode scratch.
+#define TXT_WORK_AREA_BYTES (TXT_SCREEN_BYTES + TXT_FONT_BYTES + TEXT_SCANLINE_BUFFER_TOTAL_WORDS * 4)
+    static_assert(TEXT_SCANLINE_BUFFER_TOTAL_WORDS * 4 >= TXT_SCRATCH_BYTES, "");
+#else
+#define TXT_WORK_AREA_BYTES (TXT_SCREEN_BYTES + TXT_FONT_BYTES + TXT_SCRATCH_BYTES)
+#endif
+    static_assert(TXT_SCRATCH_BYTES >= 512 + 1024, "decode scratch too small");
     uint32_t size;
     uint8_t *wa = pd_get_work_area(&size);
-    assert(size >=TEXT_SCANLINE_BUFFER_TOTAL_WORDS * 4 + 80*25*2 + 4096);
+    assert(size >= TXT_WORK_AREA_BYTES);
     text_screen_cpy = wa;
-    text_font_cpy = text_screen_cpy + 80 * 25 * 2;
-    text_scanline_buffer_start = (uint32_t *) (text_font_cpy + 4096);
-#if 0
-    static_assert(sizeof(normal_font_data) == 4096, "");
-    memcpy(text_font_cpy, normal_font_data, sizeof(normal_font_data));
-    memcpy(text_screen_cpy, endoom_data, 80 * 25 * 2);
-#else
-    static_assert(TEXT_SCANLINE_BUFFER_TOTAL_WORDS * 4 > 1024 + 512, "");
-    uint8_t *tmp_buf = (uint8_t *)text_scanline_buffer_start;
+    text_font_cpy = text_screen_cpy + TXT_SCREEN_BYTES;
+    uint8_t *tmp_buf = text_font_cpy + TXT_FONT_BYTES;
+#if SUPPORT_TEXT_SCANVIDEO
+    text_scanline_buffer_start = (uint32_t *)tmp_buf;
+#endif
+    static_assert(TXT_FONT_BYTES == 4096, "");
     uint16_t *decoder = (uint16_t *)(tmp_buf + 512);
     th_bit_input bi;
     th_bit_input_init(&bi, normal_font_data_z);
-    decode_data(text_font_cpy, 4096, &bi, decoder, 512, tmp_buf, 512);
+    decode_data(text_font_cpy, TXT_FONT_BYTES, &bi, decoder, 512, tmp_buf, 512);
     th_bit_input_init(&bi, endoom_data);
     // text
-    decode_data(text_screen_cpy, 80*25, &bi, decoder, 512, tmp_buf, 512);
+    decode_data(text_screen_cpy, TXT_CELLS, &bi, decoder, 512, tmp_buf, 512);
     // attr
-    decode_data(text_screen_cpy+80*25, 80*25, &bi, decoder, 512, tmp_buf, 512);
-    static_assert(TEXT_SCANLINE_BUFFER_TOTAL_WORDS * 4 > 80*25*2, "");
+    decode_data(text_screen_cpy + TXT_CELLS, TXT_CELLS, &bi, decoder, 512, tmp_buf, 512);
     // re-interlace the text & attr
-    memcpy(tmp_buf, text_screen_cpy, 80*25*2);
-    for(int i=0;i<80*25;i++) {
+    memcpy(tmp_buf, text_screen_cpy, TXT_SCREEN_BYTES);
+    for(int i=0;i<TXT_CELLS;i++) {
         text_screen_cpy[i*2] = tmp_buf[i];
-        text_screen_cpy[i*2+1] = tmp_buf[80*25 + i];
+        text_screen_cpy[i*2+1] = tmp_buf[TXT_CELLS + i];
     }
-#endif
     text_screen_data = text_screen_cpy;
 #endif
 }
