@@ -49,7 +49,7 @@
 #define LOADER_LAUNCH_SCRATCH 6
 #define LOADER_RETURN_SCRATCH 7
 
-boolean doom_launched_from_bootloader(void)
+bool doom_launched_from_bootloader(void)
 {
 #if PICO_ON_DEVICE
     return watchdog_hw->scratch[LOADER_LAUNCH_SCRATCH] == LOADER_LAUNCH_MAGIC;

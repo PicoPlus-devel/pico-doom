@@ -18,7 +18,9 @@
 #ifndef DOOM_BOOT_H
 #define DOOM_BOOT_H
 
-#include "doomtype.h"
+// Plain <stdbool.h> rather than doomtype.h so this stays safe to include from
+// the C++ translation units (i_usbhid.cpp).
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,7 +29,7 @@ extern "C" {
 // True if this image was started by the resident pico-bootLoader rather than
 // flashed standalone via BOOTSEL. Informational only — the reboot below does
 // the right thing either way.
-boolean doom_launched_from_bootloader(void);
+bool doom_launched_from_bootloader(void);
 
 // End the program: return to the pico-bootLoader picker if we were launched
 // from it, otherwise just reset (which restarts Doom). Never returns.

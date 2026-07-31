@@ -288,6 +288,13 @@ extern uint8_t *text_screen_data;
 
 static int8_t entry_line = -1;
 
+// The ENDOOM screen is shown on its own until the first keypress, which scrolls
+// the A:\> prompt into view. Gamepad handling needs to tell the two apart: the
+// first press opens the prompt, and only then does START act as "DOOM".
+boolean exit_screen_prompt_visible(void) {
+    return entry_line >= 0;
+}
+
 static void scroll_line() {
     if (entry_line == 24) {
         memmove(text_screen_data, text_screen_data + 160, 160 * 24);
@@ -521,12 +528,16 @@ void __attribute((noreturn)) I_Quit (void)
     }
 
     // Standalone: hand the screen over to the fake DOS prompt and stay there.
-    // The way out is the user typing DOOM, which resets and runs the game again.
-    at_exit_screen = 1;
+    // The way out is the user typing DOOM (or pressing START on a pad), which
+    // resets and runs the game again.
     I_StartTextInput(0,0,0,0);
     uint8_t buffer[80];
     buffer[0] = 0;
     exit_screen_kb_buffer_80 = buffer; // fine as this function never returns
+    // Publish the buffer before the flag: both the keyboard hook in i_input.c
+    // and the gamepad hook in i_usbhid.cpp dereference it as soon as they see
+    // at_exit_screen set.
+    at_exit_screen = 1;
     while (true) {
         exit_screen_pump();
     }

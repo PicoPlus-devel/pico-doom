@@ -53,7 +53,16 @@ void pico_usb_post_joystick(int buttons, int xmove, int ymove, int strafemove);
 void pico_usb_post_mouse(int buttons, int dx, int dy, int wheel);
 #endif
 void pico_usb_hid_poll(void);
+// Exit screen (see i_system.c). The pad drives it directly rather than through
+// the event queue, because I_Quit never runs D_ProcessEvents. `boolean` is
+// `bool` in both languages here (doomtype.h), so these match the C definitions.
+extern int8_t at_exit_screen;
+extern uint8_t *exit_screen_kb_buffer_80;
+void handle_exit_key_down(int scancode, bool shift, uint8_t *kb_buffer, int kb_len);
+bool exit_screen_prompt_visible(void);
 }
+
+#include "doom_boot.h"
 
 namespace
 {
@@ -169,6 +178,11 @@ namespace
     }
 #endif
 
+    // Bit 6 is joybmenu in m_controls.c (START). Named because it is referenced
+    // both when building the joystick mask and by the exit-screen handling
+    // below, and the two must not drift apart.
+    constexpr int JOYB_MENU_BIT = 6;
+
     // Merge all connected pads into one joystick event whose button bit
     // layout matches the joyb* defaults in m_controls.c:
     // 0 fire, 1 strafe, 2 speed/run, 3 use, 4 prev weapon, 5 next weapon,
@@ -198,7 +212,7 @@ namespace
             if (gp.buttons & Button::Y) buttons |= 1 << 3;
             if (gp.buttons & (Button::SELECT | Button::L)) buttons |= 1 << 4;
             if (gp.buttons & Button::R) buttons |= 1 << 5;
-            if (gp.buttons & Button::START) buttons |= 1 << 6;
+            if (gp.buttons & Button::START) buttons |= 1 << JOYB_MENU_BIT;
             if (gp.buttons & Button::LEFT) xmove = -127;
             else if (gp.buttons & Button::RIGHT) xmove = 127;
             if (gp.buttons & Button::UP) ymove = -127;
@@ -221,7 +235,7 @@ namespace
         if (nes & 0x0200) buttons |= 1 << 3;      // SNES X         -> use
         if (nes & 0x0404) buttons |= 1 << 4;      // Select / SNES L-> prev weapon
         if (nes & 0x0800) buttons |= 1 << 5;      // SNES R         -> next weapon
-        if (nes & 0x0008) buttons |= 1 << 6;      // Start          -> menu
+        if (nes & 0x0008) buttons |= 1 << JOYB_MENU_BIT; // Start   -> menu
         if (nes & 0x0040) xmove = -127;           // Left
         else if (nes & 0x0080) xmove = 127;       // Right
         if (nes & 0x0010) ymove = -127;           // Up
@@ -229,6 +243,31 @@ namespace
 #endif
 
         static int pb, px, py, ps;
+
+        if (at_exit_screen)
+        {
+            // I_Quit never pumps D_ProcessEvents, so posting a joystick event
+            // here would go nowhere. Drive the exit screen directly instead, and
+            // do not fall through to pico_usb_post_joystick.
+            const int newly = buttons & ~pb;
+            const bool newDpad = (xmove && !px) || (ymove && !py);
+            pb = buttons; px = xmove; py = ymove; ps = strafemove;
+            if (newly || newDpad)
+            {
+                if (!exit_screen_prompt_visible())
+                {
+                    // Any button drops from the ENDOOM screen to the A:\> prompt.
+                    // Scancode 0 types nothing, it just scrolls the prompt in.
+                    handle_exit_key_down(0, false, exit_screen_kb_buffer_80, 80);
+                }
+                else if (newly & (1 << JOYB_MENU_BIT))
+                {
+                    doom_restart_game(); // START == typing DOOM at the prompt
+                }
+            }
+            return;
+        }
+
         if (buttons != pb || xmove != px || ymove != py || strafemove != ps)
         {
             pico_usb_post_joystick(buttons, xmove, ymove, strafemove);
