@@ -31,13 +31,29 @@ see [README-chocolate.md](README-chocolate.md).
 * `arm-none-eabi-gcc` — the CI builds with **13.2.Rel1**; other versions may
   work but binary size is tight, so mismatches can cause link failures.
 * `cmake` and `make`.
-* `picotool` is fetched and built automatically by the build script; the
-  Pico SDK and pico-extras come in as git submodules.
+* `picotool` **2.2.0 or newer** on your `PATH` (the build falls back to fetching
+  and building it, but a system install is much faster).
+* The Pico SDK, pico-extras and Pico-PIO-USB, pointed at by environment
+  variables — they are *not* submodules of this repository:
+
+  ```bash
+  export PICO_SDK_PATH=$HOME/pico/pico-sdk
+  export PICO_EXTRAS_PATH=$HOME/pico/pico-extras
+  export PICO_PIO_USB_PATH=$HOME/pico/Pico-PIO-USB   # PIO-USB boards only
+  ```
+
+  The SDK must have its own submodules checked out
+  (`git -C $PICO_SDK_PATH submodule update --init`): tinyusb comes from the SDK's
+  `lib/tinyusb`, not from this repository. `PICO_PIO_USB_PATH` is only needed by
+  the boards whose USB host runs on PIO — the Fruit Jam and the Feather RP2350;
+  the Pico 2 and Murmulator M2 builds use native USB and pass
+  `-DENABLE_PIO_USB=0`. Every build script validates these paths up front via
+  [pico-env.sh](pico-env.sh) and stops with a clear message if one is wrong.
 
 ## Quick start (standalone)
 
 ```bash
-git submodule update --init
+git submodule update --init      # tusb_xinput + the shared driver library
 ./fruitjam-build.sh
 ```
 
@@ -64,7 +80,6 @@ To run Doom under the resident
 that lives on an SD card and flashes/launches emulators — build with:
 
 ```bash
-git submodule update --init
 ./fruitjam-build-forbootloader.sh
 ```
 
@@ -172,6 +187,34 @@ These addresses are for the Fruit Jam. The other boards share the standalone map
 don't need to generate anything for the default build. To run a different WAD you
 convert it to the RP2350 WHX/WHD format with the `whd_gen` host tool.
 
+### Download a prebuilt `whd_gen`
+
+Every [release](../../releases) attaches ready-to-run `whd_gen` binaries. They are
+statically linked — nothing to install, no DLLs, no glibc version to match:
+
+| File | Platform |
+|---|---|
+| `whd_gen-win64.exe` | 64-bit Windows |
+| `whd_gen-linux-x64` | x86_64 Linux |
+| `whd_gen-linux-arm64` | arm64 Linux (Raspberry Pi OS 64-bit) |
+
+On Linux, make it executable first (`chmod +x whd_gen-linux-*`). The two
+conversions that matter, and which firmware each one pairs with:
+
+```bash
+# WAD lives in flash — pairs with doom_tiny_<board>.uf2
+whd_gen DOOM1.WAD doom1.whx
+
+# WAD lives on the SD card as /roms/doom/doom.whd — pairs with doom_tiny_<board>_full.uf2
+whd_gen doom.wad doom.whd -no-super-tiny
+```
+
+There is no prebuilt binary for 32-bit Windows or macOS; build from source below
+(`src/whd_gen/build_native.sh` needs only a C/C++ compiler). Output is
+byte-identical whichever platform produced the binary.
+
+### Build `whd_gen` from source
+
 `whd_gen` needs none of the game's runtime dependencies — no SDL, no `pico-sdk`,
 just a C/C++ toolchain and `CMake`. Build only that target from a native build
 directory:
@@ -198,24 +241,88 @@ build/src/whd_gen/whd_gen DOOM1.WAD doom1.whx
 build/src/whd_gen/whd_gen DOOM2.WAD doom2.whd -no-super-tiny
 ```
 
-### Windows executables
+### Cross-compiling `whd_gen` (Windows, arm64)
 
 [src/whd_gen/build_native.sh](src/whd_gen/build_native.sh) builds `whd_gen`
-without CMake, and can cross-compile standalone Windows executables from
-Linux/WSL with the MinGW-w64 toolchain:
+without CMake, one target per invocation:
 
 ```bash
-sudo apt install g++-mingw-w64-x86-64   # or g++-mingw-w64-i686 for 32-bit
-src/whd_gen/build_native.sh win64       # -> src/whd_gen/whd_gen-win64.exe
-src/whd_gen/build_native.sh win32       # -> src/whd_gen/whd_gen-win32.exe
+src/whd_gen/build_native.sh                # -> src/whd_gen/whd_gen (dynamic, for dev)
+src/whd_gen/build_native.sh linux-x64      # -> whd_gen-linux-x64    (static)
+src/whd_gen/build_native.sh linux-arm64    # -> whd_gen-linux-arm64  (static)
+src/whd_gen/build_native.sh win64          # -> whd_gen-win64.exe    (static)
+src/whd_gen/build_native.sh win32          # -> whd_gen-win32.exe    (static)
 ```
 
-The `.exe` is statically linked: copy it to any Windows machine and run it from
-a Command Prompt, no DLLs required. On Windows itself the same script also
-works in an [MSYS2](https://www.msys2.org/) MinGW shell (`./build_native.sh`).
+The Windows targets need MinGW-w64 (`sudo apt install g++-mingw-w64-x86-64`, or
+`g++-mingw-w64-i686` for 32-bit). The `.exe` is statically linked: copy it to any
+Windows machine and run it from a Command Prompt, no DLLs required. On Windows
+itself the same script works in an [MSYS2](https://www.msys2.org/) MinGW shell.
+
+For `linux-arm64` you need an aarch64 cross-compiler. **Do not
+`apt install g++-aarch64-linux-gnu`** — on Ubuntu 24.04 that package
+Breaks/Replaces `gcc-multilib`/`g++-multilib`, so apt removes them and any `-m32`
+build on the machine stops working. Use a standalone toolchain tarball, such as
+the ARM GNU Toolchain `aarch64-none-linux-gnu` build, and point the script at it
+(note the `-none-` in the prefix):
+
+```bash
+CC=/opt/arm-gnu/bin/aarch64-none-linux-gnu-gcc \
+CXX=/opt/arm-gnu/bin/aarch64-none-linux-gnu-g++ \
+  src/whd_gen/build_native.sh linux-arm64
+```
 
 For the deeper story (WHX vs WHD, caveats about non-id WADs) see
 [README.RP2040.md](README.RP2040.md#whd_gen).
+
+## Cutting a release
+
+Releases are built by
+[.github/workflows/BuildAndRelease.yml](.github/workflows/BuildAndRelease.yml) on
+a self-hosted runner (a Raspberry Pi 5) when a `v*` tag is pushed. The workflow is
+a thin wrapper: everything it does is `./buildAll.sh` and `./release-notes.sh`, so
+running those two scripts locally *is* testing the pipeline.
+
+```bash
+./buildAll.sh                    # fills releases/ -- exactly what CI runs
+./release-notes.sh v1.0          # writes release-notes.md, the release body
+```
+
+`buildAll.sh` builds the standalone and SD-card variant for all four boards,
+converts `doom1.whx` at the standalone flash offset, and copies the prebuilt
+`whd_gen` binaries in — 12 files in all. The pico-bootLoader variants are **not**
+released here: they are built in the
+[pico-bootLoader](https://github.com/fhoedemakers/pico-bootLoader) repository,
+which invokes `<board>-build-forbootloader.sh` itself and produces its own WHX at
+the offset matching each board's flash map.
+
+The runner needs `PICO_SDK_PATH`, `PICO_EXTRAS_PATH` and `PICO_PIO_USB_PATH` (set
+in the workflow to `/datalocal/pico/...`), plus `picotool` ≥ 2.2.0 on `PATH`.
+
+### Refreshing the prebuilt `whd_gen` binaries
+
+The runner is ARM64 and never compiles `whd_gen`; it only copies
+`prebuilt/whd_gen/*` into `releases/`. Those binaries are cross-built on an
+x86_64 Linux box and committed:
+
+```bash
+./update-prebuilt-whd_gen.sh     # linux-x64, linux-arm64, win64
+git add prebuilt/whd_gen && git commit
+```
+
+Do this whenever anything `whd_gen` compiles changes (`src/whd_gen/`,
+`src/tiny_huff.c`, `src/musx_decoder.c`, `src/image_decoder.c`, `src/adpcm-xq/`).
+`buildAll.sh` compares the commit recorded in `prebuilt/whd_gen/VERSIONS.txt`
+against those paths and prints a warning if the binaries have fallen behind — a
+warning rather than an error, so an unrelated commit cannot block a release.
+
+### Steps
+
+1. Add a `## vX.Y` section to [CHANGELOG.md](CHANGELOG.md) — the heading text
+   must be exactly the tag, since `release-notes.sh` extracts that section.
+2. Commit, then dry-run on the runner without publishing anything:
+   `gh workflow run BuildAndRelease.yml` (leave the `tag` input empty).
+3. `git tag vX.Y && git push origin vX.Y`.
 
 ## Other supported boards
 

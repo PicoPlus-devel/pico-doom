@@ -4,10 +4,28 @@ cmake_minimum_required(VERSION 3.13)
 
 # We use PICO_SDK_PATH being set as an indicator that we're doing a Pico BUILD
 if (PICO_SDK_PATH)
-    set(PICO_PIO_USB_PATH ${CMAKE_CURRENT_LIST_DIR}/3rdparty/Pico-PIO-USB)
+    # Pico-PIO-USB is an external checkout like the SDK and pico-extras (it used
+    # to be a 3rdparty/ submodule). Setting PICO_PIO_USB_PATH here, before
+    # pico_sdk_init(), is what makes tinyusb's own rp2040 family.cmake define the
+    # tinyusb_pico_pio_usb target from our checkout instead of falling back to
+    # its bundled hw/mcu/raspberry_pi/Pico-PIO-USB copy. Only the boards whose
+    # USB host runs on PIO link that target (see ENABLE_PIO_USB in
+    # src/pico/CMakeLists.txt), so an unset path is not an error by itself.
+    if (NOT PICO_PIO_USB_PATH AND DEFINED ENV{PICO_PIO_USB_PATH})
+        set(PICO_PIO_USB_PATH $ENV{PICO_PIO_USB_PATH})
+    endif()
+    if (PICO_PIO_USB_PATH AND NOT EXISTS ${PICO_PIO_USB_PATH}/src/pio_usb.c)
+        message(FATAL_ERROR "PICO_PIO_USB_PATH=${PICO_PIO_USB_PATH} has no src/pio_usb.c.\
+ Point it at a Pico-PIO-USB checkout, or unset it for a native-USB board.")
+    endif()
     include(${PICO_SDK_PATH}/pico_sdk_init.cmake)
     add_subdirectory(${PICO_EXTRAS_PATH} pico_extras)
 endif()
+
+# Stamped into the UF2 binary info (picotool info) by src/CMakeLists.txt. The
+# release workflow passes -DDOOM_RELEASE_VERSION=<tag> through CMAKE_ARGS, so no
+# tracked file has to be rewritten to cut a release.
+set(DOOM_RELEASE_VERSION "dev" CACHE STRING "Version stamped into the UF2 binary info")
 
 project("Chocolate Doom" VERSION 3.0.0 LANGUAGES C CXX)
 enable_language(CXX)
@@ -34,8 +52,11 @@ if(WHD_LOAD_FROM_SD)
 endif()
 
 if (PICO_SDK_PATH)
-    # we are using git@github.com:liamfraser/tinyusb.git as it has some RP2040 fixes that aren't upstreamed yet
-    #set(PICO_TINYUSB_PATH ${CMAKE_CURRENT_LIST_DIR}/3rdparty/tinyusb)
+    # tinyusb comes from the SDK: PICO_TINYUSB_PATH defaults to
+    # ${PICO_SDK_PATH}/lib/tinyusb, which is 0.18.0 in SDK 2.2.0 and carries the
+    # RP2350 fixes and board definitions that rp2040-doom's liamfraser fork (an
+    # old 3rdparty/tinyusb submodule, 0.12.0) was here for. Make sure the SDK's
+    # own submodules are checked out -- pico-env.sh verifies this.
     # this only affects device builds device, but we want to use zone for malloc in this case so we don't have two separate elastic spaces and can fit more in
     set(SKIP_PICO_MALLOC 1)
     pico_sdk_init()

@@ -8,21 +8,23 @@
 # from a registered/Ultimate doom.wad with:
 #   whd_gen doom.wad doom.whd -no-super-tiny
 # Artifact: build_full_murmulatorm2/src/doom_tiny_full.uf2
+cd "$(dirname "$0")" || exit 1
 TAG=murmulatorm2
+. ./pico-env.sh
 BUILD=build_full_${TAG}
 export CFLAGS="-include $(pwd)/${TAG}_cflags.h -g3 -ggdb"
 export CXXFLAGS="-include $(pwd)/${TAG}_cflags.h -g3 -ggdb"
 cmake -S . -B $BUILD \
     -DCMAKE_BUILD_TYPE=MinSizeRel \
-    -DPICO_SDK_PATH=3rdparty/pico-sdk \
-    -DPICO_EXTRAS_PATH=3rdparty/pico-extras \
+    -DPICO_SDK_PATH="$PICO_SDK_PATH" \
+    -DPICO_EXTRAS_PATH="$PICO_EXTRAS_PATH" \
     -DPICOTOOL_FETCH_FROM_GIT_PATH="$(pwd)/picotool" \
     -DPICO_BOARD=pico2 \
     -DUSE_HSTX=1 \
     -DENABLE_PIO_USB=0 \
     -DDOOM_NO_STDIO_UART=1 \
     -DWHD_LOAD_FROM_SD=ON \
-    ${CMAKE_ARGS} "$@"
+    ${CMAKE_ARGS} "$@" || exit 1
 
 # No doom1-whx.uf2 step: the WAD data comes from the SD card at boot.
-make -C $BUILD -j$(nproc)
+make -C $BUILD -j$(nproc) || exit 1

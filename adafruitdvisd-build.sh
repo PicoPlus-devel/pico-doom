@@ -17,20 +17,22 @@ case "$1" in
     flash|debug) MODE=$1; shift ;;
 esac
 
+cd "$(dirname "$0")" || exit 1
 TAG=adafruitdvisd
+. ./pico-env.sh
 BUILD=build_${TAG}
 WHX_ADDR=0x10080000
 export CFLAGS="-include $(pwd)/${TAG}_cflags.h -g3 -ggdb"
 export CXXFLAGS="-include $(pwd)/${TAG}_cflags.h -g3 -ggdb"
 cmake -S . -B $BUILD \
     -DCMAKE_BUILD_TYPE=MinSizeRel \
-    -DPICO_SDK_PATH=3rdparty/pico-sdk \
-    -DPICO_EXTRAS_PATH=3rdparty/pico-extras \
+    -DPICO_SDK_PATH="$PICO_SDK_PATH" \
+    -DPICO_EXTRAS_PATH="$PICO_EXTRAS_PATH" \
     -DPICOTOOL_FETCH_FROM_GIT_PATH="$(pwd)/picotool" \
     -DPICO_BOARD=pico2 \
     -DUSE_HSTX=1 \
     -DENABLE_PIO_USB=0 \
-    ${CMAKE_ARGS} "$@"
+    ${CMAKE_ARGS} "$@" || exit 1
 
 make -C $BUILD -j$(nproc) || exit 1
 

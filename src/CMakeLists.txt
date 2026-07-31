@@ -493,6 +493,9 @@ function(add_doom_tiny SUFFIX RENDER_LIB)
             include(${CMAKE_SOURCE_DIR}/cmake/BootPartition.cmake)
             frens_offset_for_bootloader(doom_tiny${SUFFIX})
         endif()
+        # Shows up in `picotool info`; the release workflow passes the tag as
+        # -DDOOM_RELEASE_VERSION (default "dev" for a local build).
+        pico_set_program_version(doom_tiny${SUFFIX} "${DOOM_RELEASE_VERSION}")
         pico_add_extra_outputs(doom_tiny${SUFFIX})
     endif()
 
@@ -680,7 +683,17 @@ if (PICO_SDK)
     )
     target_link_libraries(${DOOM_TINY_TARGET} PRIVATE tiny_settings)
     if (PICO_ON_DEVICE)
-        suppress_tinyusb_warnings()
+        # The SDK's suppress_tinyusb_warnings() (src/rp2_common/tinyusb/
+        # CMakeLists.txt) is a wrapper that chains to the shadowed original via
+        # _suppress_tinyusb_warnings(). tinyusb defined that original in
+        # hw/bsp/rp2040/family.cmake up to 0.18.0 and dropped it afterwards, so
+        # with a lib/tinyusb newer than the one SDK 2.2.0 pins the chain breaks
+        # with "Unknown CMake command _suppress_tinyusb_warnings". Calling it is
+        # purely cosmetic (it silences warnings inside tinyusb's own sources and
+        # we do not build with -Werror), so skip it when the original is absent.
+        if (COMMAND _suppress_tinyusb_warnings)
+            suppress_tinyusb_warnings()
+        endif()
         target_link_libraries(${DOOM_TINY_TARGET} PRIVATE pico_cd)
         target_compile_definitions(${DOOM_TINY_TARGET} PRIVATE
                 USB_SUPPORT=1

@@ -29,7 +29,16 @@ DOOM*.pcx
 HTIC*.pcx
 HEXEN*.pcx
 STRIFE*.pcx
+# Build trees: build/, build_fruitjam/, build_bl_full_murmulatorm2/, ...
 /build*
+# ...but not the release driver script, which /build* would otherwise swallow.
+!/buildAll.sh
+
+# buildAll.sh output and the generated release body. The whd_gen binaries under
+# prebuilt/ ARE committed -- they are built by hand and copied into releases/ by
+# buildAll.sh, so only the copies here are ignored.
+/releases/
+/release-notes.md
 
 *.uf2
 

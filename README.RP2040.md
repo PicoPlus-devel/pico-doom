@@ -103,8 +103,12 @@ the `develop` branch of `pico-sdk`, so I recommend that..
 
 **NOTE: I am building with arm-none-eabi-gcc 13.2.rel1 .. whilst other versions may work, changes in compiler version may affect the binary size which, being tight, can cause problems (either link failure, or you may see stack overflow in the form of color palette corruption). Particularly I know tjhat arm-none-eabi-gcc 10.x versions don't work well.**
 
-For USB keyboard input support, RP2040 Doom currently uses a modified version of TinyUSB included as a submodule. 
-Make sure you have initialized this submodule via `git submodule update --init` 
+For USB keyboard input support, upstream RP2040 Doom used a modified TinyUSB fork included as a submodule.
+**pico-doom no longer does**: TinyUSB comes from the Pico SDK's own `lib/tinyusb`, which carries the RP2350
+fixes and board definitions the fork was needed for. Make sure the SDK's submodules are initialized
+(`git -C $PICO_SDK_PATH submodule update --init`). See [README.md](README.md) for the current build
+prerequisites — the SDK, pico-extras and Pico-PIO-USB are located via `PICO_SDK_PATH`, `PICO_EXTRAS_PATH`
+and `PICO_PIO_USB_PATH` rather than vendored here.
 
 You can create a build directly like this:
 
