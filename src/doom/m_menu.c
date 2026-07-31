@@ -1863,7 +1863,12 @@ boolean M_Responder (event_t* ev)
 #define JOY_BUTTON_MAPPED(x) ((x) >= 0)
 #define JOY_BUTTON_PRESSED(x) (JOY_BUTTON_MAPPED(x) && (ev->data1 & (1 << (x))) != 0)
 
-            if (JOY_BUTTON_PRESSED(joybfire))
+            // In menus, accept the two "secondary" face buttons as select/back
+            // as well: on a gamepad the natural confirm button is A (bound to
+            // strafe in game) and the natural cancel is B (run), and only fire
+            // and use were consulted here, which made menus look dead to
+            // anyone not reaching for X/Y.
+            if (JOY_BUTTON_PRESSED(joybfire) || JOY_BUTTON_PRESSED(joybstrafe))
             {
                 // Simulate a 'Y' keypress when Doom show a Y/N dialog with Fire button.
                 if (messageToPrint && messageNeedsInput)
@@ -1888,7 +1893,7 @@ boolean M_Responder (event_t* ev)
                 }
                 joywait = I_GetTime() + 5;
             }
-            if (JOY_BUTTON_PRESSED(joybuse))
+            if (JOY_BUTTON_PRESSED(joybuse) || JOY_BUTTON_PRESSED(joybspeed))
             {
                 // Simulate a 'N' keypress when Doom show a Y/N dialog with Use button.
                 if (messageToPrint && messageNeedsInput)

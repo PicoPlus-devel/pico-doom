@@ -171,7 +171,17 @@ namespace
 
     // Merge all connected pads into one joystick event whose button bit
     // layout matches the joyb* defaults in m_controls.c:
-    // 0 fire, 1 strafe, 2 speed/run, 3 use, 4 prev weapon, 5 next weapon.
+    // 0 fire, 1 strafe, 2 speed/run, 3 use, 4 prev weapon, 5 next weapon,
+    // 6 menu.
+    //
+    // START drives bit 6 (joybmenu) so the pad can open and close the menu
+    // without a keyboard. That cost START its old next-weapon job, and as
+    // every face button was already taken the two weapon cycles moved to the
+    // shoulders (L/R), which is the usual console-Doom layout. SELECT stays a
+    // second prev-weapon so the old muscle memory still works. The shoulders
+    // therefore no longer drive strafemove directly — strafing is still there
+    // the vanilla way, by holding the strafe button (A) and pushing left/right,
+    // which g_game.c turns into sidestepping (see `strafe` at g_game.c:390).
     void pollGamePads()
     {
         using Button = io::GamePadState::Button;
@@ -186,14 +196,13 @@ namespace
             if (gp.buttons & Button::A) buttons |= 1 << 1;
             if (gp.buttons & Button::B) buttons |= 1 << 2;
             if (gp.buttons & Button::Y) buttons |= 1 << 3;
-            if (gp.buttons & Button::SELECT) buttons |= 1 << 4;
-            if (gp.buttons & Button::START) buttons |= 1 << 5;
+            if (gp.buttons & (Button::SELECT | Button::L)) buttons |= 1 << 4;
+            if (gp.buttons & Button::R) buttons |= 1 << 5;
+            if (gp.buttons & Button::START) buttons |= 1 << 6;
             if (gp.buttons & Button::LEFT) xmove = -127;
             else if (gp.buttons & Button::RIGHT) xmove = 127;
             if (gp.buttons & Button::UP) ymove = -127;
             else if (gp.buttons & Button::DOWN) ymove = 127;
-            if (gp.buttons & Button::L) strafemove = -127;
-            else if (gp.buttons & Button::R) strafemove = 127;
         }
 
 #if DOOM_NESPAD
@@ -202,19 +211,21 @@ namespace
         // Plain NES pads only populate bits 0-7 (as A,B,Select,Start,dpad),
         // so a NES pad gets A=fire / B=run. Mapping mirrors the USB block
         // above: primary=fire, secondary=run, SNES A/X=strafe/use.
+        // A plain NES pad has no shoulders, so it trades next-weapon for menu
+        // access on Start; Select still cycles weapons the other way, which
+        // reaches all of them.
         const uint16_t nes = nesButtons();
         if (nes & 0x0001) buttons |= 1 << 0;      // SNES B / NES A -> fire
         if (nes & 0x0100) buttons |= 1 << 1;      // SNES A         -> strafe
         if (nes & 0x0002) buttons |= 1 << 2;      // SNES Y / NES B -> speed/run
         if (nes & 0x0200) buttons |= 1 << 3;      // SNES X         -> use
-        if (nes & 0x0004) buttons |= 1 << 4;      // Select         -> prev weapon
-        if (nes & 0x0008) buttons |= 1 << 5;      // Start          -> next weapon
+        if (nes & 0x0404) buttons |= 1 << 4;      // Select / SNES L-> prev weapon
+        if (nes & 0x0800) buttons |= 1 << 5;      // SNES R         -> next weapon
+        if (nes & 0x0008) buttons |= 1 << 6;      // Start          -> menu
         if (nes & 0x0040) xmove = -127;           // Left
         else if (nes & 0x0080) xmove = 127;       // Right
         if (nes & 0x0010) ymove = -127;           // Up
         else if (nes & 0x0020) ymove = 127;       // Down
-        if (nes & 0x0400) strafemove = -127;      // SNES L
-        else if (nes & 0x0800) strafemove = 127;  // SNES R
 #endif
 
         static int pb, px, py, ps;

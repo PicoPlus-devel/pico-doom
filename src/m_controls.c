@@ -190,10 +190,10 @@ int joybstraferight = -1;
 
 int joybjump = -1;
 
-int joybprevweapon = 4; // select
-int joybnextweapon = 5; // start
+int joybprevweapon = 4; // select or left shoulder
+int joybnextweapon = 5; // right shoulder
 
-int joybmenu = -1;
+int joybmenu = 6; // start
 int joybautomap = -1;
 #endif
 

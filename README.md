@@ -323,12 +323,22 @@ Xbox pads: Y = X, X = Y.
 | Control | Action |
 |---------|--------|
 | D-pad / left stick | Move and turn |
-| Shoulder buttons | Strafe |
 | **X** | Fire |
 | **Y** | Open / activate |
 | **A** | Hold to turn D-pad rotation into strafing |
 | **B** | Run |
-| **Select / Start** | Previous / next weapon |
+| **L** / **Select** | Previous weapon |
+| **R** | Next weapon |
+| **Start** | Open / close the menu |
+
+In menus, **A** or **X** selects and **B** or **Y** goes back, so the button you
+reach for first works either way. **Start** opens and closes the menu, so a
+keyboard is no longer needed to get into the options.
+
+The shoulder buttons cycle weapons rather than strafing directly; strafe by
+holding **A** and pushing left/right, which is how vanilla Doom's strafe button
+works. A plain NES pad has no shoulders, so there Start opens the menu and
+Select is the only weapon cycle — it still reaches every weapon.
 
 ## Known issues
 
