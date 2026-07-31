@@ -1346,6 +1346,44 @@ void I_InitGraphics(void)
     initialized = true;
 }
 
+#if SUPPORT_TEXT
+// Put the display into 80x25 text mode, bringing the video pipeline up first if
+// I_InitGraphics() has not run yet. Unlike I_InitGraphics this touches no WAD
+// lump (no VPATCH_STBAR resolve, no PLAYPAL pre-warm) and allocates nothing from
+// the zone, so it works with no game data loaded at all — which is the point:
+// doom_errscreen.c calls it from as early as whd_sdload(), before Z_Init().
+// Returns false if the video pipeline was not up and this build cannot bring it
+// up on its own (see the scanvideo note below), i.e. nothing is on screen.
+boolean text_screen_show(void) {
+    // Set both halves of the double-buffer handshake: whether or not core1's
+    // new_frame_stuff() re-latches this frame, it latches text mode. (I_Quit
+    // sets only next_video_type because there it matters that the frame in
+    // flight finishes first.)
+    display_video_type = next_video_type = VIDEO_TYPE_TEXT;
+    if (initialized) {
+        return true;
+    }
+#if USE_HSTX
+    sem_init(&render_frame_ready, 0, 2);
+    sem_init(&display_frame_freed, 1, 2);
+    sem_init(&core1_launch, 0, 1);
+    // Text mode needs neither doom_rgb_fb nor the palette: doom_hstx_bg_task
+    // returns early on VIDEO_TYPE_TEXT and doom_hstx_scanline_cb generates the
+    // 640 pixels straight from text_screen_data plus the built-in font.
+    doom_hdmi_init(doom_hstx_scanline_cb, doom_hstx_vsync_cb, doom_hstx_bg_task, PICO_SOUND_SAMPLE_FREQ);
+    initialized = true;
+    return true;
+#else
+    // The scanvideo path's core1() enters pd_core1_loop(), which blocks on
+    // semaphores that only pd_init() sets up — so it cannot be launched before
+    // the zone exists. No supported board builds this path (all four are
+    // USE_HSTX), so rather than guess at a WAD-free scanvideo bring-up, say so
+    // and let the caller fall back to panic().
+    return false;
+#endif
+}
+#endif
+
 // Bind all variables controlling video options into the configuration
 // file system.
 void I_BindVideoVariables(void)
@@ -1407,12 +1445,13 @@ int I_GetPaletteIndex(int r, int g, int b)
     return 0;
 }
 
-#if !NO_USE_ENDDOOM
-void I_Endoom(byte *endoom_data) {
 #if SUPPORT_TEXT
+uint8_t *text_screen_prepare(void) {
     // Carved out of the renderer's work area (list_buffer, ~88 KB of existing
-    // .bss) rather than allocated: by the time we get here the renderer is done
-    // for good, and the zone is both nearly full and off-limits to core1.
+    // .bss) rather than allocated: by the time the exit screen gets here the
+    // renderer is done for good, and the zone is both nearly full and off-limits
+    // to core1. The error screen (doom_errscreen.c) leans on the same thing for
+    // the opposite reason: it runs before Z_Init(), so there is no zone yet.
 #define TXT_CELLS (TXT_SCREEN_W * TXT_SCREEN_H)
 #define TXT_SCREEN_BYTES (TXT_CELLS * 2)
 #define TXT_FONT_BYTES (256 * TXT_CHAR_H)
@@ -1442,6 +1481,18 @@ void I_Endoom(byte *endoom_data) {
     th_bit_input bi;
     th_bit_input_init(&bi, normal_font_data_z);
     decode_data(text_font_cpy, TXT_FONT_BYTES, &bi, decoder, 512, tmp_buf, 512);
+    memset(text_screen_cpy, 0, TXT_SCREEN_BYTES);
+    text_screen_data = text_screen_cpy;
+    return tmp_buf;
+}
+#endif
+
+#if !NO_USE_ENDDOOM
+void I_Endoom(byte *endoom_data) {
+#if SUPPORT_TEXT
+    uint8_t *tmp_buf = text_screen_prepare();
+    uint16_t *decoder = (uint16_t *)(tmp_buf + 512);
+    th_bit_input bi;
     th_bit_input_init(&bi, endoom_data);
     // text
     decode_data(text_screen_cpy, TXT_CELLS, &bi, decoder, 512, tmp_buf, 512);

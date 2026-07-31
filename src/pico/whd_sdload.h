@@ -24,8 +24,9 @@ extern "C" {
 
 // Bring up the QMI CS1 PSRAM, mount the SD card and copy WHD_SD_PATH
 // (default /roms/doom/doom.whd) to the PSRAM XIP window at TINY_WAD_ADDR.
-// Panics with a UART message on any failure (no PSRAM, no card, no file,
-// wrong magic) — without the WHD there is no game to fall back to.
+// On any failure (no PSRAM, no card, no file, wrong magic) it never returns —
+// without the WHD there is no game to fall back to — and shows the reason on
+// screen via doom_error_screen() as well as on UART.
 // Must run after the final clk_sys/clk_peri setup (PSRAM timing and SPI
 // baudrate are derived from them) and before D_DoomMain().
 void whd_sdload(void);

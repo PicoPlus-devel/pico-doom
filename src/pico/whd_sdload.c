@@ -19,8 +19,10 @@
 //	headers). Mount/config sequence mirrors the proven
 //	Frens::initSDCard() in pico-infonesPlus/pico_shared/FrensHelpers.cpp.
 //
-//	Every phase logs to serial BEFORE it runs, so a hang or panic on a
-//	headless board is attributable from the UART output alone.
+//	Every phase logs to serial BEFORE it runs, so a hang on a headless board
+//	is attributable from the UART output alone. Failures additionally put an
+//	explanation on the TV via doom_error_screen(), which is the only channel
+//	that works on a board built with DOOM_NO_STDIO_UART.
 //
 
 #if PICO_ON_DEVICE && WHD_LOAD_FROM_SD
@@ -35,6 +37,7 @@
 #include "ff.h"
 #include "SetupPsram.h"
 
+#include "doom_errscreen.h"
 #include "whd_sdload.h"
 
 #ifndef SDCARD_SPI
@@ -78,8 +81,13 @@ void whd_sdload(void)
     printf("flash: image ends at %p, save floor at %p\n",
            &__flash_binary_end, (void *)SAVE_FLASH_BASE);
     if ((uintptr_t)&__flash_binary_end > SAVE_FLASH_BASE) {
-        panic("image end %p above save floor %p; raise SAVE_FLASH_BASE",
-              &__flash_binary_end, (void *)SAVE_FLASH_BASE);
+        doom_error_screen("BAD FLASH LAYOUT",
+                          "The program image ends at %p, above the save-game floor"
+                          " at %p.\n"
+                          "\n"
+                          "Saving would overwrite code. Raise SAVE_FLASH_BASE in the"
+                          " board's cflags header and rebuild.",
+                          &__flash_binary_end, (void *)SAVE_FLASH_BASE);
     }
 
     // --- PSRAM --------------------------------------------------------------
@@ -87,8 +95,13 @@ void whd_sdload(void)
            PSRAM_CS_PIN, (unsigned)(clock_get_hz(clk_sys) / 1000));
     int32_t psram_size = SetupPsram(PSRAM_CS_PIN);
     if (psram_size <= 0) {
-        panic("no PSRAM found on GPIO %d (doom_tiny_full needs PSRAM for the WHD)",
-              PSRAM_CS_PIN);
+        doom_error_screen("NO PSRAM",
+                          "No PSRAM was found on GPIO %d.\n"
+                          "\n"
+                          "The full-game build keeps all of DOOM's data in PSRAM, so"
+                          " it cannot run on a board without it. Use the doom_tiny"
+                          " build instead.",
+                          PSRAM_CS_PIN);
     }
     printf("psram: OK, %u KB mapped at %p\n",
            (unsigned)(psram_size / 1024), (void *)TINY_WAD_ADDR);
@@ -119,7 +132,12 @@ void whd_sdload(void)
     printf("sd: mounting...\n");
     FRESULT fr = f_mount(&whd_sdload_fs, "", 1);
     if (fr != FR_OK) {
-        panic("SD card mount failed (FatFs error %d) - card inserted and FAT-formatted?", fr);
+        doom_error_screen("NO SD CARD",
+                          "The SD card could not be mounted (FatFs error %d).\n"
+                          "\n"
+                          "Insert a FAT-formatted card holding " WHD_SD_PATH
+                          " and reset the board.",
+                          fr);
     }
     printf("sd: mounted, filesystem %s\n", fs_type_name(whd_sdload_fs.fs_type));
 
@@ -128,15 +146,36 @@ void whd_sdload(void)
     FIL fil;
     fr = f_open(&fil, WHD_SD_PATH, FA_READ);
     if (fr != FR_OK) {
-        panic("cannot open " WHD_SD_PATH " (FatFs error %d) - put the whd_gen"
-              " -no-super-tiny output there", fr);
+        doom_error_screen("GAME DATA NOT FOUND",
+                          WHD_SD_PATH " could not be opened (FatFs error %d).\n"
+                          "\n"
+                          "Convert your WAD with:\n"
+                          "\n"
+                          "    whd_gen doom.wad doom.whd -no-super-tiny\n"
+                          "\n"
+                          "then copy doom.whd to /roms/doom on the SD card."
+                          " Download whd_gen from\n"
+                          "\n"
+                          "    " DOOM_RELEASES_URL,
+                          fr);
     }
     FSIZE_t size = f_size(&fil);
     printf("whd: %u KB, PSRAM capacity %u KB\n",
            (unsigned)(size / 1024), (unsigned)(psram_size / 1024));
     if (size < 16 || size > (FSIZE_t)psram_size) {
-        panic(WHD_SD_PATH " is %u bytes; PSRAM holds %d", (unsigned)size,
-              (int)psram_size);
+        doom_error_screen("WRONG GAME DATA SIZE",
+                          WHD_SD_PATH " is %u bytes, but the PSRAM holds"
+                          " %u KB.\n"
+                          "\n"
+                          "The file is truncated or was built for a different"
+                          " target. Regenerate it with:\n"
+                          "\n"
+                          "    whd_gen doom.wad doom.whd -no-super-tiny\n"
+                          "\n"
+                          "Download whd_gen from\n"
+                          "\n"
+                          "    " DOOM_RELEASES_URL,
+                          (unsigned)size, (unsigned)(psram_size / 1024));
     }
 
     printf("whd: loading into PSRAM: ");
@@ -149,8 +188,12 @@ void whd_sdload(void)
         UINT br = 0;
         fr = f_read(&fil, dest, want, &br);
         if (fr != FR_OK || br == 0) {
-            panic("SD read failed at offset %u (FatFs error %d)",
-                  (unsigned)(size - remaining), fr);
+            doom_error_screen("SD CARD READ ERROR",
+                              "Reading " WHD_SD_PATH " failed at offset %u"
+                              " (FatFs error %d).\n"
+                              "\n"
+                              "Reseat the card, or copy doom.whd to it again.",
+                              (unsigned)(size - remaining), fr);
         }
         dest += br;
         remaining -= br;
@@ -171,9 +214,18 @@ void whd_sdload(void)
     // --- validate -------------------------------------------------------------
     const uint8_t *whd = (const uint8_t *)TINY_WAD_ADDR;
     if (whd[0] != 'I' || whd[1] != 'W' || whd[2] != 'H' || whd[3] != 'D') {
-        panic(WHD_SD_PATH " is not a WHD (magic %02x%02x%02x%02x); generate it"
-              " with: whd_gen doom.wad doom.whd -no-super-tiny",
-              whd[0], whd[1], whd[2], whd[3]);
+        doom_error_screen("BAD GAME DATA",
+                          WHD_SD_PATH " is not a WHD file (magic"
+                          " %02x%02x%02x%02x, expected 49574844).\n"
+                          "\n"
+                          "Generate it with:\n"
+                          "\n"
+                          "    whd_gen doom.wad doom.whd -no-super-tiny\n"
+                          "\n"
+                          "Download whd_gen from\n"
+                          "\n"
+                          "    " DOOM_RELEASES_URL,
+                          whd[0], whd[1], whd[2], whd[3]);
     }
     // Peek the whdheader_t that sits right after the 12-byte wadinfo_t (see
     // whddata.h / w_wad.c) so the log identifies exactly which WAD this is:

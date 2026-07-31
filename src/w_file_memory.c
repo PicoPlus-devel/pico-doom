@@ -32,6 +32,9 @@
 #else
 #define panic I_Error
 #endif
+#if PICO_ON_DEVICE
+#include "doom_errscreen.h"
+#endif
 
 #if PICO_ON_DEVICE
 #ifndef TINY_WAD_ADDR
@@ -75,15 +78,26 @@ static wad_file_t *W_Memory_OpenFile(const char *path)
 #if WHD_SUPER_TINY
     if (fileo.mapped[0] != 'I' || fileo.mapped[1] != 'W' || fileo.mapped[2] != 'H' || fileo.mapped[3] != 'X') {
 #if PICO_ON_DEVICE
-        panic("No WXD at %p\n", TINY_WAD_ADDR);
+        doom_error_screen("NO GAME DATA",
+                          "No DOOM game data (IWHX) was found at %p.\n"
+                          "\n"
+                          "The WAD data has to be flashed alongside the program."
+                          " Download doom1-whx.uf2 from\n"
+                          "\n"
+                          "    " DOOM_RELEASES_URL "\n"
+                          "\n"
+                          "flash it, and reset the board.",
+                          (void *)TINY_WAD_ADDR);
 #else
-        panic("Expected WXD format");
+        panic("Expected WHX format");
 #endif
     }
 #else
     if (fileo.mapped[0] != 'I' || fileo.mapped[1] != 'W' || fileo.mapped[2] != 'H' || fileo.mapped[3] != 'D') {
 #if PICO_ON_DEVICE
-        panic("No WHD at %p\n", TINY_WAD_ADDR);
+        doom_error_screen("NO GAME DATA",
+                          "No DOOM game data (IWHD) was found at %p.",
+                          (void *)TINY_WAD_ADDR);
 #else
         panic("Expected WHD format");
 #endif

@@ -15,6 +15,7 @@ target_sources(common_pico INTERFACE
 if (PICO_ON_DEVICE)
     target_sources(common_pico INTERFACE
             ${CMAKE_CURRENT_LIST_DIR}/blit.S
+            ${CMAKE_CURRENT_LIST_DIR}/doom_errscreen.c
             ${CMAKE_CURRENT_LIST_DIR}/picoflash.c
             ${CMAKE_CURRENT_LIST_DIR}/i_usbhid.cpp
             )

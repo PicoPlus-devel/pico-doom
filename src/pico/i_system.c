@@ -284,7 +284,7 @@ void I_BindVariables(void)
 
 int8_t at_exit_screen;
 
-extern uint8_t *text_screen_data;
+// text_screen_data itself comes from i_video.h now.
 
 static int8_t entry_line = -1;
 

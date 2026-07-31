@@ -133,6 +133,22 @@ extern unsigned int joywait;
 #define TXT_CHAR_H 16
 #define TXT_ROW_BYTES (TXT_SCREEN_W * 2)
 
+#if SUPPORT_TEXT
+// The 80x25 char/attr cells the renderers read; NULL until text_screen_prepare().
+extern uint8_t *text_screen_data;
+
+// Carve text_screen_data and the decoded 8x16 CP437 font out of the renderer's
+// idle work area and blank the screen. The font is compiled into the binary, so
+// this needs neither the WAD nor the zone allocator. Returns the decode scratch
+// buffer (>= 512 + 1024 bytes) for the caller to reuse.
+uint8_t *text_screen_prepare(void);
+
+// Switch the display to text mode, starting the video pipeline first if
+// I_InitGraphics() has not run. False means this build could not bring video up
+// unaided and nothing is on screen. See i_video.c for the details.
+boolean text_screen_show(void);
+#endif
+
 #if DOOM_TINY
 enum {
     VIDEO_TYPE_NONE,   // note order is important as we compare (also there is an array of handlers)
