@@ -72,6 +72,14 @@ if (TARGET tinyusb_host)
         set(ENABLE_PIO_USB 1)
     endif()
     target_link_libraries(pico_cd INTERFACE tinyusb_host pico_shared_usb_hid)
+    # The MantaPad NES and SNES shells are the same USB device (081f:e401) and
+    # the SNES X button shares a report bit with the NES B button, so the driver
+    # cannot tell them apart and picks a mode instead. Upstream defaults to NES
+    # and only switches to SNES once Y is pressed, which left X dead on an SNES
+    # pad until then. Doom wants all four face buttons, and mode 2 is the better
+    # default for a NES pad here too: its B lands on io X (fire) instead of
+    # io B (run), and with mode 1 the pad had no fire button at all.
+    target_compile_definitions(pico_cd INTERFACE MANTAPAD_DEFAULT_MODE=2)
     if (ENABLE_PIO_USB)
         target_link_libraries(pico_cd INTERFACE tinyusb_pico_pio_usb)
     endif()
