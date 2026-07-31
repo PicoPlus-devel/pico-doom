@@ -30,9 +30,12 @@ HTIC*.pcx
 HEXEN*.pcx
 STRIFE*.pcx
 # Build trees: build/, build_fruitjam/, build_bl_full_murmulatorm2/, ...
-/build*
-# ...but not the release driver script, which /build* would otherwise swallow.
-!/buildAll.sh
+# Split in two so buildAll.sh is not caught. Do not widen this back to /build*:
+# that swallows buildAll.sh, and excluding it again with a !negation still makes
+# `git check-ignore --no-index` report the file as matching an ignore rule, which
+# greys it out in editors.
+/build
+/build_*
 
 # buildAll.sh output and the generated release body. The whd_gen binaries under
 # prebuilt/ ARE committed -- they are built by hand and copied into releases/ by
