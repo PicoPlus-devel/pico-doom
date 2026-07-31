@@ -54,12 +54,8 @@ void pico_usb_post_mouse(int buttons, int dx, int dy, int wheel);
 #endif
 void pico_usb_hid_poll(void);
 // Exit screen (see i_system.c). The pad drives it directly rather than through
-// the event queue, because I_Quit never runs D_ProcessEvents. `boolean` is
-// `bool` in both languages here (doomtype.h), so these match the C definitions.
+// the event queue, because I_Quit never runs D_ProcessEvents.
 extern int8_t at_exit_screen;
-extern uint8_t *exit_screen_kb_buffer_80;
-void handle_exit_key_down(int scancode, bool shift, uint8_t *kb_buffer, int kb_len);
-bool exit_screen_prompt_visible(void);
 }
 
 #include "doom_boot.h"
@@ -247,23 +243,14 @@ namespace
         if (at_exit_screen)
         {
             // I_Quit never pumps D_ProcessEvents, so posting a joystick event
-            // here would go nowhere. Drive the exit screen directly instead, and
-            // do not fall through to pico_usb_post_joystick.
+            // here would go nowhere. I_Quit already put the A:\> prompt on
+            // screen, so the only pad action left is START, which stands in for
+            // typing DOOM at it.
             const int newly = buttons & ~pb;
-            const bool newDpad = (xmove && !px) || (ymove && !py);
             pb = buttons; px = xmove; py = ymove; ps = strafemove;
-            if (newly || newDpad)
+            if (newly & (1 << JOYB_MENU_BIT))
             {
-                if (!exit_screen_prompt_visible())
-                {
-                    // Any button drops from the ENDOOM screen to the A:\> prompt.
-                    // Scancode 0 types nothing, it just scrolls the prompt in.
-                    handle_exit_key_down(0, false, exit_screen_kb_buffer_80, 80);
-                }
-                else if (newly & (1 << JOYB_MENU_BIT))
-                {
-                    doom_restart_game(); // START == typing DOOM at the prompt
-                }
+                doom_restart_game();
             }
             return;
         }

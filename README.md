@@ -107,10 +107,10 @@ decided at runtime — the same binary behaves correctly either way:
   picker. Doom explicitly asks the loader to skip its resume jump (watchdog
   scratch register 7, the same handshake as `pico_shared`'s
   `Frens::rebootToBootloader()`), so you get the picker and not a relaunch.
-* **Standalone** — the ENDOOM screen appears; any key or gamepad button drops to
-  a fake DOS prompt. With a keyboard, `DIR`, `CLS` and `CD` work, and typing
-  `DOOM` (or `DOOM.EXE`) and pressing Return restarts the game. With only a
-  gamepad, **Start** at the prompt does the same thing.
+* **Standalone** — the ENDOOM screen appears with a fake DOS prompt already on
+  it. With a keyboard, `DIR`, `CLS` and `CD` work, and typing `DOOM` (or
+  `DOOM.EXE`) and pressing Return restarts the game. With only a gamepad,
+  **Start** does the same thing.
 
 The UART reports which path was taken. Detection is
 `watchdog_hw->scratch[6] == 0xB007ED01`, set by the loader just before it jumps

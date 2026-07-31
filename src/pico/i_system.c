@@ -288,13 +288,6 @@ int8_t at_exit_screen;
 
 static int8_t entry_line = -1;
 
-// The ENDOOM screen is shown on its own until the first keypress, which scrolls
-// the A:\> prompt into view. Gamepad handling needs to tell the two apart: the
-// first press opens the prompt, and only then does START act as "DOOM".
-boolean exit_screen_prompt_visible(void) {
-    return entry_line >= 0;
-}
-
 static void scroll_line() {
     if (entry_line == 24) {
         memmove(text_screen_data, text_screen_data + 160, 160 * 24);
@@ -534,9 +527,14 @@ void __attribute((noreturn)) I_Quit (void)
     uint8_t buffer[80];
     buffer[0] = 0;
     exit_screen_kb_buffer_80 = buffer; // fine as this function never returns
-    // Publish the buffer before the flag: both the keyboard hook in i_input.c
-    // and the gamepad hook in i_usbhid.cpp dereference it as soon as they see
-    // at_exit_screen set.
+    // Put the prompt up right away instead of waiting for a first keypress:
+    // nothing on screen said a key was wanted, and with only a pad attached it
+    // was not obvious that one was. A null scancode types nothing, it just
+    // initialises entry_line and draws the prompt line.
+    handle_exit_key_down(0, false, buffer, 80);
+    // Flag last, once the buffer is published and the prompt is drawn: the
+    // keyboard hook in i_input.c and the gamepad hook in i_usbhid.cpp both start
+    // acting the moment they see it.
     at_exit_screen = 1;
     while (true) {
         exit_screen_pump();
