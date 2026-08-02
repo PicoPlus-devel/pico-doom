@@ -121,7 +121,8 @@ namespace
     // previous poll and immediately kick off the next one (~200 µs per
     // transfer, one poll cycle of input latency — negligible).
     //
-    // Two hard-won robustness rules, learned on the adafruitdvisd bring-up:
+    // Three hard-won robustness rules, learned on the adafruitdvisd bring-up
+    // and on the exit screen:
     //  - After nespad_begin() the SM runs at a 1 MHz PIO clock, so its
     //    first instruction — "irq wait 0", set-flag-then-park — lands ~1 µs
     //    after enable. The 378 MHz core reaches nespad_read_start() first,
@@ -131,11 +132,23 @@ namespace
     //  - Never call nespad_read_finish() (blocking FIFO reads) unless
     //    nespad_read_ready() says data is waiting — a controller port must
     //    not be able to hang the game loop.
+    //  - Never start a read sooner than MIN_POLL_US after the last one. The
+    //    autopush fills the FIFO a few SM instructions *before* the SM gets
+    //    back to its irq-wait park, so a caller that polls flat out hits the
+    //    very same lost-release race: it sees the word land, clears the IRQ,
+    //    and the SM sets the flag afterwards and never wakes. The game loop
+    //    polls once a tic and never noticed, but exit_screen_pump() spins, so
+    //    the pad died the moment the DOS prompt came up and START stopped
+    //    working. Rate limiting here rather than in the pump keeps the fix
+    //    with the rule it belongs to, whatever the caller does.
+    constexpr uint64_t MIN_POLL_US = 1000;
+
     uint16_t nesButtons()
     {
         static bool inited = false, dead = false;
         static uint16_t last = 0;
         static uint64_t not_ready_since = 0;
+        static uint64_t last_start = 0;
         if (dead)
             return 0;
         if (!inited)
@@ -156,14 +169,21 @@ namespace
             // before the first release — see race note above.
             busy_wait_us(100);
             nespad_read_start();
+            last_start = time_us_64();
             return 0;
+        }
+        const uint64_t now = time_us_64();
+        if (now - last_start < MIN_POLL_US)
+        {
+            // Too soon to touch the SM at all — not even the ready check, so a
+            // caller spinning on this cannot age out the timeout below either.
+            return last;
         }
         if (!nespad_read_ready())
         {
-            // Reads complete in ~200 µs; polls are further apart than that.
-            // Transiently not-ready: keep the previous state. Never-ready
-            // means a dead state machine — give up loudly after a second.
-            const uint64_t now = time_us_64();
+            // Reads complete in ~200 µs, well inside MIN_POLL_US. Transiently
+            // not-ready: keep the previous state. Never-ready means a dead
+            // state machine — give up loudly after a second.
             if (not_ready_since == 0)
                 not_ready_since = now;
             else if (now - not_ready_since > 1000000)
@@ -177,6 +197,7 @@ namespace
         nespad_read_finish();
         last = nespad_states_ext[0] | nespad_states_ext[1];
         nespad_read_start();
+        last_start = now;
         return last;
     }
 #endif
