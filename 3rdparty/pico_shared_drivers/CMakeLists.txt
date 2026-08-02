@@ -24,7 +24,8 @@ add_subdirectory(drivers/pico_hdmi)
 if (PICO_ON_DEVICE)
     add_subdirectory(usb_hid)
     add_subdirectory(nespad)
-    # SD + PSRAM (used by the doom_tiny_full WHD_LOAD_FROM_SD variant)
+    # SD card: save games and settings on every board, plus the WHD itself on
+    # the doom_tiny_full WHD_LOAD_FROM_SD variant, which also needs the PSRAM.
     add_subdirectory(drivers/pico_fatfs)
     add_subdirectory(drivers/pico_psram)
 endif()

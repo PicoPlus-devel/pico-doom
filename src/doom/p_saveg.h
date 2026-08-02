@@ -38,16 +38,9 @@ char *P_TempSaveGameFile(void);
 // filename to use for a savegame slot
 
 #endif
-#if PICO_ON_DEVICE
-typedef struct {
-    const uint8_t *data; // null for empty slot
-    int size;
-} flash_slot_info_t;
-
-void P_SaveGameGetExistingFlashSlotAddresses(flash_slot_info_t *slots, int count);
-// can pass null to clear a slot
-boolean P_SaveGameWriteFlashSlot(int slot, const uint8_t *buffer, uint size, uint8_t *buffer4k);
-#endif
+// Path of the save game for a slot. On device this is a file on the SD card,
+// DOOM_SD_SAVEDIR "/doomsav<slot>.dsg" (see doom_sdcard.h); the returned buffer
+// is reused by the next call.
 char *P_SaveGameFile(int slot);
 
 // Savegame file header read/write functions

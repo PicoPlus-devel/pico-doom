@@ -43,6 +43,22 @@ done
     echo "\`doom1-whx.uf2\` is the shareware DOOM1 WAD, already converted. It is the"
     echo "same file for every board (flashed at ${WHX_ADDR_STANDALONE})."
     echo
+    echo "### Insert a microSD card"
+    echo
+    echo "Saved games and settings live on the card, on every board and every build:"
+    echo
+    echo "| What | Where |"
+    echo "|---|---|"
+    echo "| Saved games | \`/SAVES/doomsav0.dsg\` … \`/SAVES/doomsav5.dsg\` |"
+    echo "| Settings | \`/settings_DOOM.dat\` |"
+    echo
+    echo "Settings covers the volumes, messages, screen size, mouse sensitivity, gamma"
+    echo "and the FPS overlay. \`/SAVES\` is created for you on the first save, and the"
+    echo "naming matches pico-infonesPlus so one card can serve both."
+    echo
+    echo "The game still runs without a card; you just cannot save, and settings reset"
+    echo "at power-off. A card inserted after boot is picked up within a few seconds."
+    echo
     echo "### Play a registered WAD from SD card (\`_full\` builds)"
     echo
     echo "\`doom_tiny_<board>_full.uf2\` leaves the WAD out of flash and instead copies"

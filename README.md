@@ -23,8 +23,10 @@ see [README-chocolate.md](README-chocolate.md).
 * At least one USB input device — a keyboard, a mouse, and/or a supported
   gamepad (see [Controls](#controls)).
 * Optional: headphones or a speaker (audio also comes out over HDMI).
-* Optional: a microSD card, only needed for the
-  [pico-bootLoader](#running-under-the-pico-bootloader) route.
+* A microSD card (FAT32/exFAT) for [saved games and settings](#saved-games-and-settings).
+  The game runs without one; you just cannot save anything. It is also what the
+  [pico-bootLoader](#running-under-the-pico-bootloader) route and the
+  [full-game build](#full-game-from-sd-card-doom_tiny_full) need.
 
 **Build host** (Linux or macOS)
 
@@ -127,9 +129,9 @@ The default build embeds the shareware episode in flash. The **full variant**
 instead loads a complete registered/Ultimate `doom.wad` (all episodes, built
 with `WHD_SUPER_TINY=0`) from the SD card into **PSRAM** at boot and plays it
 from there — the in-game *New Game → Episode* menu then offers every episode,
-and the Episode 3 bunny finale works. Save games still live in flash (in the
-region the WHX used to occupy) and are keyed to the WAD, so saves made with a
-different WAD are refused rather than corrupted.
+and the Episode 3 bunny finale works. [Saved games](#saved-games-and-settings)
+land on the same card and are keyed to the WAD, so saves made with a different
+WAD are refused rather than corrupted.
 
 1. Convert your registered/Ultimate `doom.wad` (input first, output second):
 
@@ -165,9 +167,38 @@ file — panics with a descriptive UART message.
 | Murmulator M2 (`murmulatorm2`) | onboard (GPIO 8) |
 | Feather RP2350 (`featherrp2350`) | external APS6404 wired to GPIO 8 |
 
+## Saved games and settings
+
+Both live on the microSD card, on every board and every build:
+
+| What | Where |
+|------|-------|
+| Saved games | `/SAVES/doomsav0.dsg` … `/SAVES/doomsav5.dsg` (the six menu slots) |
+| Settings | `/settings_DOOM.dat` |
+
+The `/SAVES` directory is created on the first save. The naming follows
+[pico-infonesPlus](https://github.com/fhoedemakers/pico-infonesPlus), so one card
+can hold the saves of both without colliding.
+
+Saved games are the compressed format the port has always used, and are still
+keyed to the WAD — a save made with a different WAD is refused rather than
+loaded as garbage.
+
+The settings file covers everything this build can actually change: SFX and
+music volume, messages on/off, screen size, mouse sensitivity, gamma (**F11**)
+and the FPS overlay (**\\**). Changes are written when you leave the menus and
+when you quit, so gamma or screen size changed with a hotkey mid-game is stored
+the next time you open and close the menu. A missing, damaged or older-version
+file is ignored and the built-in defaults are used.
+
+Without a card the game runs normally — the load menu is empty, saving reports
+the reason, and settings reset at power-off. Insert a card and it starts working
+within a few seconds; no reset needed.
+
 ## Flash map
 
-The build scripts flash the WAD data (`doom1.whx`) to a fixed address that
+Nothing is written to flash any more, so the map is entirely static. The build
+scripts flash the WAD data (`doom1.whx`) to a fixed address that
 depends on which build you ran. These values come from `TINY_WAD_ADDR` in
 [fruitjam_cflags.h](fruitjam_cflags.h) and the two build scripts:
 

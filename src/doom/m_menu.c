@@ -61,6 +61,11 @@
 
 #include "m_menu.h"
 
+#if PICO_ON_DEVICE
+#include "doom_sdcard.h"
+#include "doom_settings.h"
+#endif
+
 #if PICO_DOOM && USE_PICO_NET
 #include "piconet.h"
 #include "net_client.h"
@@ -659,11 +664,13 @@ void M_ReadSaveStrings(void)
         LoadMenu[i].status = retval == SAVESTRINGSIZE;
     }
 #elif PICO_ON_DEVICE
-    flash_slot_info_t slots[load_end];
-    P_SaveGameGetExistingFlashSlotAddresses(slots, count_of(slots));
+    // The description is the first SAVESTRINGSIZE bytes of the file, so only
+    // one sector per slot has to come off the card. A missing file — or no card
+    // at all — leaves the slot empty and unselectable, which is exactly the
+    // right behaviour for both.
     for (int i = 0;i < load_end;i++) {
-        if (slots[i].data) {
-            M_StringCopy(savegamestrings[i], (const char *)slots[i].data, SAVESTRINGSIZE);
+        if (doom_sd_peek_file(P_SaveGameFile(i), savegamestrings[i], SAVESTRINGSIZE)) {
+            savegamestrings[i][SAVESTRINGSIZE - 1] = '\0';
             LoadMenu[i].status = 1;
         } else {
             M_StringCopy(savegamestrings[i], EMPTYSTRING, SAVESTRINGSIZE);
@@ -732,20 +739,14 @@ void M_DrawSaveLoadBorder(int x,int y, int l)
 #if !NO_USE_LOAD
 
 
-#if PICO_ON_DEVICE
-uint8_t g_load_slot;
-#endif
 //
 // User wants to load this game
 //
 void M_LoadSelect(int choice)
 {
     char    name[256];
-	
+
     M_StringCopy(name, P_SaveGameFile(choice), sizeof(name));
-#if PICO_ON_DEVICE
-    g_load_slot = choice;
-#endif
     G_LoadGame (name);
     M_ClearMenus ();
 }
@@ -2513,6 +2514,13 @@ void M_ClearMenus (void)
     menuactive = 0;
     // if (!netgame && usergame && paused)
     //       sendpause = true;
+#if PICO_ON_DEVICE
+    // Every route out of the menus comes through here, so this is the one place
+    // that has to know a volume or a toggle may just have been changed. It is a
+    // no-op unless something really did change, so the callers that are not the
+    // user pressing escape (starting a game, the finale) cost nothing.
+    doom_settings_flush();
+#endif
 }
 
 

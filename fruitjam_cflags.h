@@ -99,11 +99,14 @@
 #define TINY_WAD_ADDR 0x10080000
 #endif
 
-// --- doom_tiny_full (WHD_LOAD_FROM_SD) --------------------------------------
+// --- SD card and PSRAM ------------------------------------------------------
 // SD SPI instance for the vendored pico_fatfs driver (the SD_* pins above are
 // valid hardware-SPI0 pins on the RP2350B) and the PSRAM chip select: the
 // Fruit Jam has 8 MB APS6404 PSRAM on QMI CS1 = GPIO 47. Values mirror
 // pico-infonesPlus/pico_shared/BoardConfigs.cmake HW_CONFIG 8.
+// The card is used by every build, for save games and settings
+// (src/pico/doom_sdcard.c); doom_tiny_full additionally streams the WHD off
+// it at boot.
 #define SDCARD_SPI spi0
 #define SDCARD_PIO pio1
 #define PSRAM_CS_PIN 47
@@ -113,15 +116,6 @@
 // window — same address for standalone and bootloader builds.
 #undef TINY_WAD_ADDR
 #define TINY_WAD_ADDR 0x11000000
-// Flash save-game slots pack downward from the end of flash; with the WHD in
-// PSRAM the old "end of WHD" lower bound lives in the wrong address space, so
-// the now-free WHX slot base becomes the floor (whd_sdload.c asserts the app
-// image ends below it).
-#if BUILD_FOR_BOOTLOADER
-#define SAVE_FLASH_BASE 0x10400000
-#else
-#define SAVE_FLASH_BASE 0x10080000
-#endif
 #endif
 
 #endif

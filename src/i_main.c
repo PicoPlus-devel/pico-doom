@@ -44,8 +44,11 @@
 #if PICO_RP2350
 #include "hardware/structs/qmi.h"
 #endif
-#if PICO_ON_DEVICE && WHD_LOAD_FROM_SD
+#if PICO_ON_DEVICE
+#include "pico/doom_sdcard.h"
+#if WHD_LOAD_FROM_SD
 #include "pico/whd_sdload.h"
+#endif
 #endif
 //
 // D_DoomMain()
@@ -391,11 +394,20 @@ int main(int argc, char **argv)
 #if LIB_PICO_STDIO
     stdio_init_all();
 #endif
-#if PICO_ON_DEVICE && WHD_LOAD_FROM_SD
-    // Needs the final clk_sys/clk_peri from above (PSRAM timing and SD SPI
-    // baudrate derive from them); must precede D_DoomMain's W_AddFile, which
+#if PICO_ON_DEVICE
+    // Both of these need the final clk_sys/clk_peri from above: PSRAM timing
+    // and the SD SPI baudrate derive from them.
+#if WHD_LOAD_FROM_SD
+    // Mounts the card itself, and must precede D_DoomMain's W_AddFile, which
     // reads the WHD directly from the PSRAM window.
     whd_sdload();
+#else
+    // Save games and settings live on the card here too, but nothing about
+    // booting depends on it: if there is no card, the game runs and only
+    // persistence is lost. doom_sd_ready() retries later, so a card inserted
+    // after power-on still works.
+    doom_sd_mount();
+#endif
 #endif
 #if PICO_BUILD
     I_Init();

@@ -77,6 +77,9 @@
 #if PICO_DOOM
 #include "picodoom.h"
 #endif
+#if PICO_ON_DEVICE
+#include "doom_settings.h"
+#endif
 
 #include "d_main.h"
 #if PICO_BUILD
@@ -1573,6 +1576,15 @@ void D_DoomMain (void)
     M_SetConfigFilenames("default.cfg", PROGRAM_PREFIX "doom.cfg");
     D_BindVariables();
     M_LoadDefaults();
+
+#if PICO_ON_DEVICE
+    // On device there is no default.cfg: the settings that can be changed live
+    // on the SD card instead (doom_settings.c). This has to happen here, ahead
+    // of M_Init (which derives the screen size), R_Init and S_Init (which take
+    // the volumes). No I_AtExit counterpart — the handlers registered there are
+    // never actually run on device, so I_Quit() flushes explicitly.
+    doom_settings_load();
+#endif
 
 #if !NO_USE_SAVE_CONFIG
     // Save configuration at exit.

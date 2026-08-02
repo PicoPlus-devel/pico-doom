@@ -281,8 +281,33 @@ void I_BindVariables(void)
 #include "piconet.h"
 #include "whddata.h"
 #include "doom_boot.h"
+// doom_settings.h stubs itself out off-device, so I_Quit() below can call the
+// flush unconditionally; doom_sdcard.h has no such fallback and is only used
+// from PICO_ON_DEVICE code.
+#include "doom_settings.h"
+#if PICO_ON_DEVICE
+#include "doom_sdcard.h"
+#endif
 
 int8_t at_exit_screen;
+
+#if PICO_ON_DEVICE
+// Probe how much flash the chip actually has, for the exit screen's idea of how
+// big drive A: is. Lived in p_saveg.c while the save games were flash-resident;
+// the DIR listing is the only caller left.
+const uint8_t *get_end_of_flash(void) {
+    static const uint8_t *end_of_flash;
+    if (!end_of_flash) {
+        // look for end of flash by repeated data
+        for(end_of_flash = (const uint8_t *)XIP_BASE + 2 * 1024*1024; end_of_flash < (const uint8_t *)XIP_BASE + 16 * 1024 * 1024; end_of_flash += 2 * 1024 * 1024) {
+            if (!memcmp(end_of_flash, (const uint8_t *)XIP_BASE, 512)) {
+                break;
+            }
+        }
+    }
+    return end_of_flash;
+}
+#endif
 
 // text_screen_data itself comes from i_video.h now.
 
@@ -391,22 +416,23 @@ void handle_exit_key_down(int scancode, bool shift, uint8_t *kb_buffer, int kb_l
             int dsg_size = 0;
 #define SHOW_SLOTS 1
 #if PICO_ON_DEVICE && SHOW_SLOTS
-            flash_slot_info_t slots[7];
-            P_SaveGameGetExistingFlashSlotAddresses(slots, 7);
+            // Save games are files on the SD card now, so they are listed for
+            // completeness but no longer count against the flash "disk".
             int filecount = 2;
-            for(int i=0;i<7;i++) {
-                if (slots[i].data) {
+            for(int i=0;i<6;i++) {
+                int32_t slot_size = doom_sd_file_size(P_SaveGameFile(i));
+                if (slot_size >= 0) {
                     sprintf(buf, "12/11/2021  04:21 PM                   %d.DSG", i);
-                    write_num(slots[i].size + 8, buf + 27, 9);
+                    write_num(slot_size, buf + 27, 9);
                     write_text_line(buf);
-                    dsg_size += slots[i].size + 8;
+                    dsg_size += slot_size;
                     filecount++;
                 }
             }
 #if WHD_LOAD_FROM_SD
-            // The WHD lives in PSRAM, not flash; the flash "used" by DOOM is
-            // the image slot up to the save-region floor (SAVE_FLASH_BASE).
-            int filesize = SAVE_FLASH_BASE - XIP_BASE;
+            // The WHD lives in PSRAM, not flash, so the only thing DOOM keeps
+            // in flash here is its own image.
+            int filesize = binsize;
 #else
             int filesize = whd_map_base + whdheader->size - (uint8_t *)XIP_BASE;
 #endif
@@ -420,7 +446,7 @@ void handle_exit_key_down(int scancode, bool shift, uint8_t *kb_buffer, int kb_l
             write_num(binsize + whdheader->size + dsg_size, buf + 23, 9);
             write_text_line(buf);
             strcpy(buf, "        0 Dir(s)                 bytes free");
-            int remaining = disksize - filesize - dsg_size;
+            int remaining = disksize - filesize;
             if (remaining < 0) remaining = 0;
             write_num(remaining, buf + 23, 9);
             write_text_line(buf);
@@ -493,6 +519,12 @@ void __attribute((noreturn)) I_Quit (void)
 #if USE_PICO_NET
     piconet_stop();
 #endif
+    // Before anything claims display_frame_freed below: doom_settings_flush()
+    // takes that semaphore itself via pd_start_save_pause(). This is also the
+    // only chance to persist changes made outside the menus (F11 gamma, +/-
+    // screen size, '\' FPS overlay), since I_AtExit handlers never run here.
+    doom_settings_flush();
+
     // Launched from the pico-bootLoader: the picker is where we are headed, so
     // skip ENDOOM and the DOS prompt entirely (that also avoids caching the
     // ENDOOM lump for nothing) and just let the quit sound finish.

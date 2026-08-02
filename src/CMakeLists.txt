@@ -699,8 +699,10 @@ if (PICO_SDK)
                 USB_SUPPORT=1
         )
         if (WHD_LOAD_FROM_SD)
+            # pico_fatfs comes in via common_pico (save games and settings need
+            # it on every board); PSRAM is specific to this variant.
             target_sources(${DOOM_TINY_TARGET} PRIVATE pico/whd_sdload.c)
-            target_link_libraries(${DOOM_TINY_TARGET} PRIVATE pico_fatfs pico_psram)
+            target_link_libraries(${DOOM_TINY_TARGET} PRIVATE pico_psram)
         endif()
     endif()
 endif()

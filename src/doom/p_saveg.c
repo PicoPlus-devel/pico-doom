@@ -34,6 +34,10 @@
 #include "m_misc.h"
 #include "r_state.h"
 
+#if PICO_ON_DEVICE
+#include "doom_sdcard.h"
+#endif
+
 #if !NO_FILE_ACCESS
 FILE *save_stream;
 #endif
@@ -86,8 +90,11 @@ char *P_SaveGameFile(int slot)
 
     return filename;
 #else
-    static char fn[2];
-    fn[0] = slot + '0';
+    // On device the save games are files on the SD card (doom_sdcard.c), so the
+    // slot number turns into a real path here and M_LoadSelect can hand it
+    // straight to G_LoadGame() the way the desktop build does.
+    static char fn[sizeof(DOOM_SD_SAVEDIR "/" SAVEGAMENAME "0.dsg")];
+    M_snprintf(fn, sizeof(fn), DOOM_SD_SAVEDIR "/" SAVEGAMENAME "%d.dsg", slot);
     return fn;
 #endif
 }
@@ -2635,204 +2642,3 @@ void P_UnArchiveSpecials (void)
     }
 
 }
-
-#if PICO_ON_DEVICE
-#include "w_wad.h"
-#include "picoflash.h"
-#include "hardware/sync.h"
-#include "hardware/address_mapped.h"
-#include "hardware/timer.h"
-#include "picodoom.h"
-
-const uint8_t *get_end_of_flash(void) {
-    static const uint8_t *end_of_flash;
-    if (!end_of_flash) {
-        // look for end of flash by repeated data
-        for(end_of_flash = (const uint8_t *)XIP_BASE + 2 * 1024*1024; end_of_flash < (const uint8_t *)XIP_BASE + 16 * 1024 * 1024; end_of_flash += 2 * 1024 * 1024) {
-            if (!memcmp(end_of_flash, (const uint8_t *)XIP_BASE, 512)) {
-                break;
-            }
-        }
-//        printf("FLASH SPACE %p -> %p\n", whd_map_base + whdheader->size, end_of_flash);
-    }
-    return end_of_flash;
-}
-
-// Save slots pack downward from the end of flash; save_flash_limit() is the
-// floor they may not grow past. Classically that is the end of the flash-
-// resident WHD; with WHD_LOAD_FROM_SD the WHD lives in PSRAM (0x11xxxxxx, a
-// different address space), so the boards' cflags headers provide a flash
-// floor instead (SAVE_FLASH_BASE = the now-unused WHX slot base; whd_sdload.c
-// asserts at boot that the program image ends below it).
-static inline const uint8_t *save_flash_limit(void) {
-#if WHD_LOAD_FROM_SD
-    return (const uint8_t *)SAVE_FLASH_BASE;
-#else
-    return whd_map_base + whdheader->size;
-#endif
-}
-
-void P_SaveGameGetExistingFlashSlotAddresses(flash_slot_info_t *slots, int count) {
-    const uint8_t *index = get_end_of_flash() - 4;
-    int i;
-    const uint8_t *limit = save_flash_limit();
-    for(i=0;i<count;i++) {
-        bool ok = false;
-        if (index[0] == 0x53 && index[1] >= i && index[1] < count) {
-            int size = index[2] + (index[3] << 8);
-            const uint8_t *start = index - size - 4;
-            if (start >= limit &&
-                start[0] == 0xb7 &&
-                start[1] == index[1] &&
-                start[2] == (uint8_t)(size ^ 0x55) &&
-                start[3] == (uint8_t)((size>>8) ^ 0xaa)) {
-                ok = true;
-                for(;i<index[1];i++) {
-                    slots[i].data = 0;
-                    slots[i].size = 0;
-                }
-                slots[i].data = start + 4;
-                slots[i].size = size;
-                index = start - 4;
-//                printf("SLOT %d %s %p->%p (+%04x)\n", i, slots[i].data, slots[i].data-4, slots[i].data-4 + slots[i].size+8, slots[i].size+8);
-            }
-        }
-        if (!ok) break;
-    }
-    for(;i<count;i++) {
-        slots[i].data = 0;
-        slots[i].size = 0;
-    }
-}
-
-typedef struct {
-    const uint8_t *dest;
-    const uint8_t *src;
-    int size;
-} flash_write_element;
-
-static void __no_inline_not_in_flash_func(write_flash_elements)(const flash_write_element *elements, int num, const uint8_t *low_dest, const uint8_t *high_dest, uint8_t *buffer4k, bool forwards) {
-    static_assert(FLASH_SECTOR_SIZE == 4096, "");
-    const uint8_t *first_sector = (const uint8_t *)(((uintptr_t)low_dest)&~(FLASH_SECTOR_SIZE-1));
-    const uint8_t *last_sector = (const uint8_t *)(((uintptr_t)high_dest-1)&~(FLASH_SECTOR_SIZE-1));
-//    for(int i=0;i<num;i++) {
-//        if (elements[i].dest < low_dest || elements[i].dest+elements[i].size > high_dest) {
-//            panic("bad ranges");
-//        }
-//    }
-
-//    uint32_t save = spin_lock_blocking(spin_lock_instance(PICO_SPINLOCK_ID_HARDWARE_CLAIM));
-    for(const uint8_t *sector = forwards ? first_sector : last_sector;
-            forwards ? sector <= last_sector : sector >= first_sector;
-            sector += forwards ? FLASH_SECTOR_SIZE : -FLASH_SECTOR_SIZE) {
-        memcpy(buffer4k, sector, FLASH_SECTOR_SIZE);
-//        printf("SAVE/ERASE %08x + %04x\n", sector, FLASH_SECTOR_SIZE);
-        for(int i=0;i<num;i++) {
-            const uint8_t *to = sector;
-            int from_offset = sector - elements[i].dest;
-            int size = FLASH_SECTOR_SIZE;
-            if (from_offset < 0) {
-                size += from_offset;
-                to -= from_offset;
-                from_offset = 0;
-            }
-            if (from_offset + size > elements[i].size) {
-                size = elements[i].size - from_offset;
-            }
-            if (size > 0) {
-//                printf("  WRITE %p (%p+%04x) + %04x at %p (%p+%04x)\n", elements[i].src + from_offset, elements[i].src, from_offset, size, to, sector, to-sector);
-//                hard_assert( to >= sector && to + size - sector <= FLASH_SECTOR_SIZE);
-                memmove(buffer4k + (to - sector), elements[i].src + from_offset, size);
-            }
-        }
-        uint32_t save = save_and_disable_interrupts();
-        picoflash_sector_program((uintptr_t)sector - XIP_BASE, buffer4k);
-        restore_interrupts(save);
-    }
-//    spin_unlock(spin_lock_instance(PICO_SPINLOCK_ID_HARDWARE_CLAIM), save);
-}
-
-boolean __noinline P_SaveGameWriteFlashSlot(int slot, const uint8_t *buffer, uint size, uint8_t *buffer4k) {
-#define MAX_SLOTS 8
-#define SLOT_OVERHEAD 8
-    flash_slot_info_t slots[MAX_SLOTS];
-    P_SaveGameGetExistingFlashSlotAddresses(slots, count_of(slots));
-    int used = 0;
-    const uint8_t *prev_slot_bottom = get_end_of_flash();
-    int last_slot = 0;
-    for(int i=0;i< count_of(slots);i++) {
-        if (slots[i].data) {
-            if (i < slot) {
-                prev_slot_bottom = slots[i].data - 4;
-            }
-            if (i != slot) {
-                used += SLOT_OVERHEAD + slots[i].size;
-            }
-            last_slot = i;
-        }
-    }
-    const uint8_t *limit = save_flash_limit();
-    int freespace = (get_end_of_flash() - limit) - used;
-//    printf("SPACE %d, required %d\n", freespace, size + SLOT_OVERHEAD);
-    if (freespace < size + SLOT_OVERHEAD) {
-        return false;
-    }
-    pd_start_save_pause();
-//    printf("Need to add %p->%p (+%04x)\n", prev_slot_bottom - 4 - size, prev_slot_bottom, size + 8);
-    if (last_slot > slot) {
-        assert(slots[last_slot.data]);
-        const uint8_t *from_top = slots[slot].data ? slots[slot].data - 4 : prev_slot_bottom;
-        const uint8_t *from_bottom = slots[last_slot].data - 4;
-        const uint8_t *to_top = prev_slot_bottom;
-        if (buffer) to_top -= size + SLOT_OVERHEAD;
-        assert(from_top - from_bottom > 0);
-        flash_write_element element = {
-                .size = from_top - from_bottom,
-                .dest = to_top - (from_top - from_bottom),
-                .src = from_bottom
-        };
-//        printf("Need to move %p->%p (+%04x) to %p->%p\n", from_bottom, from_top, element.size, to_top - element.size, to_top);
-        write_flash_elements(&element, 1, to_top - element.size, to_top, buffer4k, to_top < from_top);
-    }
-    if (buffer) {
-        uint8_t high_marker[] = {
-                0x53, (uint8_t) slot, size & 0xff, (size >> 8) & 0xff
-        };
-        uint8_t low_marker[] = {
-                0xb7, (uint8_t) slot, 0x55 ^ (size & 0xff), 0xaa ^ ((size >> 8) & 0xff)
-        };
-
-        flash_write_element elements[3] = {
-                {
-                        .dest = prev_slot_bottom - 4,
-                        .src = high_marker,
-                        .size = 4,
-                },
-                {
-                        .dest = prev_slot_bottom - 4 - size,
-                        .src = buffer,
-                        .size = (int) size,
-                },
-                {
-                        .dest = prev_slot_bottom - 8 - size,
-                        .src = low_marker,
-                        .size = 4,
-                }
-        };
-        write_flash_elements(elements, count_of(elements), prev_slot_bottom - 8 - size, prev_slot_bottom, buffer4k,
-                             true);
-    } else if (slot == last_slot && slots[slot].data) {
-//        printf("Nuking slot %d\n", slot);
-        uint8_t dummy[4] = {0};
-        flash_write_element element = {
-                .size = 4,
-                .dest = slots[slot].data + slots[slot].size,
-                .src = dummy
-        };
-        write_flash_elements(&element, 1, element.dest, element.dest+4, buffer4k, true);
-    }
-    pd_end_save_pause();
-    return true;
-}
-
-#endif

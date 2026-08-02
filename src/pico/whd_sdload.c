@@ -16,8 +16,8 @@
 //	-no-super-tiny output) from the SD card into PSRAM, where the rest
 //	of the engine reads it zero-copy through the cached QMI CS1 XIP
 //	window (TINY_WAD_ADDR = 0x11000000, see the <board>_cflags.h
-//	headers). Mount/config sequence mirrors the proven
-//	Frens::initSDCard() in pico-infonesPlus/pico_shared/FrensHelpers.cpp.
+//	headers). The card itself is brought up by doom_sdcard.c, which the
+//	standalone build also uses for save games and settings.
 //
 //	Every phase logs to serial BEFORE it runs, so a hang on a headless board
 //	is attributable from the UART output alone. Failures additionally put an
@@ -31,17 +31,17 @@
 #include <string.h>
 
 #include "pico/stdlib.h"
-#include "hardware/pio.h"
+#include "hardware/clocks.h" // clk_sys, for the PSRAM timing log line
 
-#include "tf_card.h"
 #include "ff.h"
 #include "SetupPsram.h"
 
 #include "doom_errscreen.h"
+#include "doom_sdcard.h"
 #include "whd_sdload.h"
 
-#ifndef SDCARD_SPI
-#error WHD_LOAD_FROM_SD builds need SDCARD_SPI/SDCARD_PIO/PSRAM_CS_PIN from the board cflags header
+#ifndef PSRAM_CS_PIN
+#error WHD_LOAD_FROM_SD builds need PSRAM_CS_PIN from the board cflags header
 #endif
 
 #if TINY_WAD_ADDR != 0x11000000
@@ -57,38 +57,9 @@
 // involved.
 #define WHD_SDLOAD_CHUNK (256 * 1024)
 
-static FATFS whd_sdload_fs;
-
-static const char *fs_type_name(BYTE fs_type)
-{
-    switch (fs_type) {
-        case FS_FAT12: return "FAT12";
-        case FS_FAT16: return "FAT16";
-        case FS_FAT32: return "FAT32";
-        case FS_EXFAT: return "exFAT";
-        default:       return "unknown";
-    }
-}
-
 void whd_sdload(void)
 {
     printf("\n=== doom_tiny_full: WHD from SD card ===\n");
-
-    // The flash save-game slots pack downward from the end of flash with
-    // SAVE_FLASH_BASE as their floor (p_saveg.c); the program image must
-    // stay below that floor or saving would corrupt code.
-    extern uint8_t __flash_binary_end;
-    printf("flash: image ends at %p, save floor at %p\n",
-           &__flash_binary_end, (void *)SAVE_FLASH_BASE);
-    if ((uintptr_t)&__flash_binary_end > SAVE_FLASH_BASE) {
-        doom_error_screen("BAD FLASH LAYOUT",
-                          "The program image ends at %p, above the save-game floor"
-                          " at %p.\n"
-                          "\n"
-                          "Saving would overwrite code. Raise SAVE_FLASH_BASE in the"
-                          " board's cflags header and rebuild.",
-                          &__flash_binary_end, (void *)SAVE_FLASH_BASE);
-    }
 
     // --- PSRAM --------------------------------------------------------------
     printf("psram: init QMI CS1 on GPIO %d (clk_sys %u kHz)...\n",
@@ -107,44 +78,21 @@ void whd_sdload(void)
            (unsigned)(psram_size / 1024), (void *)TINY_WAD_ADDR);
 
     // --- SD card ------------------------------------------------------------
-    printf("sd: config SPI%d SCK=%d MOSI=%d MISO=%d CS=%d...\n",
-           spi_get_index(SDCARD_SPI), SD_SCK, SD_TX, SD_RX, SD_CS);
-    static pico_fatfs_spi_config_t config = {
-        SDCARD_SPI,
-        CLK_SLOW_DEFAULT,
-        CLK_FAST_DEFAULT_PIO,
-        SD_RX,  // MISO
-        SD_CS,
-        SD_SCK,
-        SD_TX,  // MOSI
-        true    // internal pullups on MISO/MOSI
-    };
-    if (pico_fatfs_set_config(&config)) {
-        printf("sd: using hardware SPI (slow %u kHz, fast %u kHz)\n",
-               (unsigned)(pico_fatfs_get_clk_slow_freq() / 1000),
-               (unsigned)(pico_fatfs_get_clk_fast_freq() / 1000));
-    } else {
-        // Pins outside the hardware SPI mux tables — drive them with PIO.
-        pico_fatfs_config_spi_pio(SDCARD_PIO, pio_claim_unused_sm(SDCARD_PIO, true));
-        printf("sd: pins not hardware-SPI capable, using PIO SPI fallback\n");
-    }
-
-    printf("sd: mounting...\n");
-    FRESULT fr = f_mount(&whd_sdload_fs, "", 1);
-    if (fr != FR_OK) {
+    // Shared with the save game and settings code (doom_sdcard.c); it logs the
+    // pin configuration and mount result itself. Unlike those callers, this one
+    // cannot carry on without a card: there would be no game to run.
+    if (!doom_sd_mount()) {
         doom_error_screen("NO SD CARD",
-                          "The SD card could not be mounted (FatFs error %d).\n"
+                          "The SD card could not be mounted.\n"
                           "\n"
                           "Insert a FAT-formatted card holding " WHD_SD_PATH
-                          " and reset the board.",
-                          fr);
+                          " and reset the board.");
     }
-    printf("sd: mounted, filesystem %s\n", fs_type_name(whd_sdload_fs.fs_type));
 
     // --- WHD → PSRAM ---------------------------------------------------------
     printf("whd: opening " WHD_SD_PATH "...\n");
     FIL fil;
-    fr = f_open(&fil, WHD_SD_PATH, FA_READ);
+    FRESULT fr = f_open(&fil, WHD_SD_PATH, FA_READ);
     if (fr != FR_OK) {
         doom_error_screen("GAME DATA NOT FOUND",
                           WHD_SD_PATH " could not be opened (FatFs error %d).\n"

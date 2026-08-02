@@ -16,7 +16,8 @@ if (PICO_ON_DEVICE)
     target_sources(common_pico INTERFACE
             ${CMAKE_CURRENT_LIST_DIR}/blit.S
             ${CMAKE_CURRENT_LIST_DIR}/doom_errscreen.c
-            ${CMAKE_CURRENT_LIST_DIR}/picoflash.c
+            ${CMAKE_CURRENT_LIST_DIR}/doom_sdcard.c
+            ${CMAKE_CURRENT_LIST_DIR}/doom_settings.c
             ${CMAKE_CURRENT_LIST_DIR}/i_usbhid.cpp
             )
     pico_wrap_function(common_pico malloc)
@@ -28,8 +29,10 @@ if (PICO_ON_DEVICE)
     )
     # hardware_i2c: TLV320 codec I2C. pico_shared_nespad: legacy NES/SNES
     # pads on PIO — compiled everywhere, only polled when the board's cflags
-    # header defines NES_PIN_CLK != -1 (see i_usbhid.cpp).
-    target_link_libraries(common_pico INTERFACE  hardware_i2c pico_shared_nespad)
+    # header defines NES_PIN_CLK != -1 (see i_usbhid.cpp). pico_fatfs: save
+    # games and settings live on the SD card on every board, so the driver is
+    # no longer specific to the WHD_LOAD_FROM_SD build.
+    target_link_libraries(common_pico INTERFACE  hardware_i2c pico_shared_nespad pico_fatfs)
 endif()
 target_include_directories(common_pico INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}
