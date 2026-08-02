@@ -228,6 +228,9 @@ static void M_ReadThis2(int choice);
 static void M_QuitDOOM(int choice);
 
 static void M_ChangeMessages(int choice);
+#if PICO_ON_DEVICE
+static void M_ChangeNesPad(int choice);
+#endif
 static void M_ChangeSensitivity(int choice);
 static void M_SfxVol(int choice);
 static void M_MusicVol(int choice);
@@ -396,6 +399,9 @@ enum
 #endif
     endgame,
     messages,
+#if PICO_ON_DEVICE
+    nespad,
+#endif
 #if !DOOM_TINY
     detail,
     scrnsize,
@@ -416,6 +422,12 @@ static const menuitem_t OptionsMenu[]=
 #endif
     {1,VPATCH_NAME(M_ENDGAM),'e',	M_EndGame},
     {1,VPATCH_NAME(M_MESSG),	'm',M_ChangeMessages},
+#if PICO_ON_DEVICE
+    // Drawn by M_DrawOptions, not from here: menuitem_t.name is vpatchname_t,
+    // which is a uint8_t under USE_WHD, and the built-in handles start past
+    // NUM_VPATCHES (384) so they truncate. An invalid name draws nothing.
+    {1,VPATCH_NAME_INVALID,	'p',M_ChangeNesPad},
+#endif
 #if !DOOM_TINY
     {1,VPATCH_NAME(M_DETAIL),'g',	M_ChangeDetail},
     {2,VPATCH_NAME(M_SCRNSZ),'s',	M_SizeDisplay},
@@ -1214,6 +1226,16 @@ void M_DrawOptions(void)
     V_DrawPatchDirect(OptionsDef.x + 120, OptionsDef.y + LINEHEIGHT * messages,
                       VPATCH_HANDLE(msgNames[showMessages]));
 
+#if PICO_ON_DEVICE
+    // The label itself, because the item cannot carry an 8-bit name (see the
+    // OptionsMenu entry). V_DrawPatchDirect takes a vpatch_handle_large_t, and
+    // the display list holds 9 bits, so a built-in handle survives this path.
+    V_DrawPatchDirect(OptionsDef.x, OptionsDef.y + LINEHEIGHT * nespad,
+                      VPATCH_HANDLE(VPATCH_NAME(M_NESPAD)));
+    V_DrawPatchDirect(OptionsDef.x + 120, OptionsDef.y + LINEHEIGHT * nespad,
+                      VPATCH_HANDLE(msgNames[nes_pad_scheme]));
+#endif
+
 #if !NO_USE_MOUSE
     M_DrawThermo(OptionsDef.x, OptionsDef.y + LINEHEIGHT * (mousesens + 1),
 		 10, mouseSensitivity);
@@ -1404,6 +1426,23 @@ void M_ChangeMessages(int choice)
 
     message_dontfuckwithme = true;
 }
+
+#if PICO_ON_DEVICE
+//
+//      Toggle the four-button NES pad layout on/off
+//
+void M_ChangeNesPad(int choice)
+{
+    // warning: unused parameter `int choice'
+    choice = 0;
+    M_SetNesPadScheme(!nes_pad_scheme);
+
+    players[consoleplayer].message = nes_pad_scheme
+            ? "NES PAD LAYOUT ON: SELECT+START FOR MENU"
+            : "NES PAD LAYOUT OFF";
+    message_dontfuckwithme = true;
+}
+#endif
 
 
 //

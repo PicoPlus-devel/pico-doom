@@ -153,6 +153,10 @@ extern int joybnextweapon;
 
 extern int joybmenu;
 extern int joybautomap;
+
+// Four-button NES pad layout instead of the SNES one; see m_controls.c.
+extern int8_t nes_pad_scheme;
+void M_SetNesPadScheme(int on);
 #endif
 
 extern isb_int8_t dclick_use;

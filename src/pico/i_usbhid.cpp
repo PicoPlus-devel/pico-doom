@@ -25,6 +25,9 @@
 
 #include "tusb.h"
 #include "gamepad.h"
+// For `boolean` (menuactive, below). It is one byte on both sides: `bool` here
+// in C++, `uint8_t` in the C that defines it.
+#include "doomtype.h"
 
 // Legacy NES/SNES pads on PIO (pico_shared nespad, vendored under
 // 3rdparty/pico_shared_drivers/nespad). Pin macros come from the board's
@@ -56,6 +59,10 @@ void pico_usb_hid_poll(void);
 // Exit screen (see i_system.c). The pad drives it directly rather than through
 // the event queue, because I_Quit never runs D_ProcessEvents.
 extern int8_t at_exit_screen;
+// Which button layout to build the joystick mask from (m_controls.c), and
+// whether the menu is up (m_menu.c) - the NES layout needs both, see below.
+extern int8_t nes_pad_scheme;
+extern boolean menuactive;
 }
 
 #include "doom_boot.h"
@@ -179,6 +186,83 @@ namespace
     // below, and the two must not drift apart.
     constexpr int JOYB_MENU_BIT = 6;
 
+    // The four buttons of a plain NES pad, merged across every connected pad.
+    // Collected separately from the SNES mask because in the NES layout what a
+    // button means depends on whether the menu is open.
+    enum {
+        NESBTN_A      = 1 << 0,
+        NESBTN_B      = 1 << 1,
+        NESBTN_SELECT = 1 << 2,
+        NESBTN_START  = 1 << 3,
+    };
+
+    // The NES layout (nes_pad_scheme != 0). Four buttons cannot cover fire,
+    // strafe, use, weapons *and* the menu, so they do double duty:
+    //
+    //                 in game                     in a menu
+    //   A             fire        (bit 0)         select   (bit 0, joybfire)
+    //   B             strafe      (bit 1)         back     (bit 3, joybuse)
+    //   START         use         (bit 3)         -
+    //   SELECT        next weapon (bit 5)         -
+    //   SELECT+START  menu        (bit 6)         menu     (bit 6)
+    //
+    // Emitting joybuse for B in menus is what lets m_menu.c stay untouched: it
+    // already turns joybfire into forward/confirm and joybuse into back/abort.
+    // There is no run button either, which is why the toggle also switches on
+    // the vanilla autorun hack (see M_SetNesPadScheme in m_controls.c).
+    int nesButtonMask(int nesbtn)
+    {
+        // The chord suppresses its own members until both are released, so
+        // letting go of one of them cannot make the other look like a fresh
+        // press and fire a stray Use or weapon switch.
+        static bool chord_latched;
+        static int8_t was_menuactive = -1;
+        static int held_over;
+
+        const int8_t in_menu = menuactive ? 1 : 0;
+
+        // A button already down when the menu opens or closes would otherwise
+        // immediately act out its new meaning: holding B (strafe) while
+        // chording the menu open would make it joybuse on the very next poll
+        // and close the menu again. Ignore whatever is held across the
+        // transition until it is released. (Held buttons across a change of
+        // layout are handled by pollGamePads, which has to cover both
+        // directions.)
+        if (was_menuactive != in_menu)
+        {
+            was_menuactive = in_menu;
+            held_over = nesbtn;
+        }
+        held_over &= nesbtn;
+        const int active = nesbtn & ~held_over;
+
+        constexpr int chord = NESBTN_SELECT | NESBTN_START;
+        const bool chord_now = (nesbtn & chord) == chord;
+        int mask = 0;
+
+        // Pulsed for a single poll rather than held: M_Responder turns any
+        // event carrying joybmenu into key_menu_activate, and the mask changes
+        // again as soon as menuactive flips, which with a held bit would toggle
+        // the menu straight back.
+        if (chord_now && !chord_latched)
+            mask |= 1 << JOYB_MENU_BIT;
+        if (chord_now)
+            chord_latched = true;
+        else if (!(nesbtn & chord))
+            chord_latched = false;
+
+        if (active & NESBTN_A)
+            mask |= 1 << 0;                            // fire / select
+        if (active & NESBTN_B)
+            mask |= in_menu ? (1 << 3) : (1 << 1);     // back / strafe
+        if (!in_menu && !chord_latched)
+        {
+            if (active & NESBTN_START)  mask |= 1 << 3; // use
+            if (active & NESBTN_SELECT) mask |= 1 << 5; // next weapon
+        }
+        return mask;
+    }
+
     // Merge all connected pads into one joystick event whose button bit
     // layout matches the joyb* defaults in m_controls.c:
     // 0 fire, 1 strafe, 2 speed/run, 3 use, 4 prev weapon, 5 next weapon,
@@ -192,23 +276,34 @@ namespace
     // therefore no longer drive strafemove directly — strafing is still there
     // the vanilla way, by holding the strafe button (A) and pushing left/right,
     // which g_game.c turns into sidestepping (see `strafe` at g_game.c:390).
+    //
+    // That layout wants six buttons and two shoulders, which a plain NES pad
+    // does not have, so `legacy` is built alongside a four-button view of the
+    // same pads and nes_pad_scheme picks between them.
     void pollGamePads()
     {
         using Button = io::GamePadState::Button;
-        int buttons = 0, xmove = 0, ymove = 0, strafemove = 0;
+        int legacy = 0, nesbtn = 0, xmove = 0, ymove = 0, strafemove = 0;
 
         for (int p = 0; p < 2; p++)
         {
             const io::GamePadState &gp = io::getCurrentGamePadState(p);
             if (!gp.isConnected())
                 continue;
-            if (gp.buttons & Button::X) buttons |= 1 << 0;
-            if (gp.buttons & Button::A) buttons |= 1 << 1;
-            if (gp.buttons & Button::B) buttons |= 1 << 2;
-            if (gp.buttons & Button::Y) buttons |= 1 << 3;
-            if (gp.buttons & (Button::SELECT | Button::L)) buttons |= 1 << 4;
-            if (gp.buttons & Button::R) buttons |= 1 << 5;
-            if (gp.buttons & Button::START) buttons |= 1 << JOYB_MENU_BIT;
+            if (gp.buttons & Button::X) legacy |= 1 << 0;
+            if (gp.buttons & Button::A) legacy |= 1 << 1;
+            if (gp.buttons & Button::B) legacy |= 1 << 2;
+            if (gp.buttons & Button::Y) legacy |= 1 << 3;
+            if (gp.buttons & (Button::SELECT | Button::L)) legacy |= 1 << 4;
+            if (gp.buttons & Button::R) legacy |= 1 << 5;
+            if (gp.buttons & Button::START) legacy |= 1 << JOYB_MENU_BIT;
+            // A NES-shelled MantaPad reports its A on io A and its B on io X
+            // (mode 2, see src/pico/CMakeLists.txt). Both face-button pairs are
+            // accepted so the layout is also usable from a SNES-shelled pad.
+            if (gp.buttons & (Button::A | Button::B)) nesbtn |= NESBTN_A;
+            if (gp.buttons & (Button::X | Button::Y)) nesbtn |= NESBTN_B;
+            if (gp.buttons & Button::SELECT) nesbtn |= NESBTN_SELECT;
+            if (gp.buttons & Button::START) nesbtn |= NESBTN_START;
             if (gp.buttons & Button::LEFT) xmove = -127;
             else if (gp.buttons & Button::RIGHT) xmove = 127;
             if (gp.buttons & Button::UP) ymove = -127;
@@ -225,18 +320,52 @@ namespace
         // access on Start; Select still cycles weapons the other way, which
         // reaches all of them.
         const uint16_t nes = nesButtons();
-        if (nes & 0x0001) buttons |= 1 << 0;      // SNES B / NES A -> fire
-        if (nes & 0x0100) buttons |= 1 << 1;      // SNES A         -> strafe
-        if (nes & 0x0002) buttons |= 1 << 2;      // SNES Y / NES B -> speed/run
-        if (nes & 0x0200) buttons |= 1 << 3;      // SNES X         -> use
-        if (nes & 0x0404) buttons |= 1 << 4;      // Select / SNES L-> prev weapon
-        if (nes & 0x0800) buttons |= 1 << 5;      // SNES R         -> next weapon
-        if (nes & 0x0008) buttons |= 1 << JOYB_MENU_BIT; // Start   -> menu
+        if (nes & 0x0001) legacy |= 1 << 0;      // SNES B / NES A -> fire
+        if (nes & 0x0100) legacy |= 1 << 1;      // SNES A         -> strafe
+        if (nes & 0x0002) legacy |= 1 << 2;      // SNES Y / NES B -> speed/run
+        if (nes & 0x0200) legacy |= 1 << 3;      // SNES X         -> use
+        if (nes & 0x0404) legacy |= 1 << 4;      // Select / SNES L-> prev weapon
+        if (nes & 0x0800) legacy |= 1 << 5;      // SNES R         -> next weapon
+        if (nes & 0x0008) legacy |= 1 << JOYB_MENU_BIT; // Start   -> menu
+        // Same pairing as the USB block: NES A is where SNES B and A sit, NES B
+        // where SNES Y and X do, so a SNES pad on this port is usable in the
+        // NES layout too.
+        if (nes & 0x0101) nesbtn |= NESBTN_A;      // SNES B / NES A, SNES A
+        if (nes & 0x0202) nesbtn |= NESBTN_B;      // SNES Y / NES B, SNES X
+        if (nes & 0x0004) nesbtn |= NESBTN_SELECT;
+        if (nes & 0x0008) nesbtn |= NESBTN_START;
         if (nes & 0x0040) xmove = -127;           // Left
         else if (nes & 0x0080) xmove = 127;       // Right
         if (nes & 0x0010) ymove = -127;           // Up
         else if (nes & 0x0020) ymove = 127;       // Down
 #endif
+
+        static bool prev_nes_scheme;
+        static bool settling;
+        const bool nes_scheme = nes_pad_scheme != 0;
+        if (nes_scheme != prev_nes_scheme)
+        {
+            prev_nes_scheme = nes_scheme;
+            settling = true;
+        }
+
+        int buttons = nes_scheme ? nesButtonMask(nesbtn) : legacy;
+
+        // The only way to change layout is to press A on the menu item, so a
+        // button is always still held at the switch - and it means different
+        // things on either side of it. On a USB pad, io A is joybfire in the
+        // NES layout but joybstrafe in the default one, and M_Responder takes
+        // either as menu-forward, so the mask change alone activated the item a
+        // second time and put the setting straight back. Report nothing until
+        // every button has been let go. The d-pad is left alone: it navigates
+        // and moves the same way in both layouts.
+        if (settling)
+        {
+            if (buttons)
+                buttons = 0;
+            else
+                settling = false;
+        }
 
         static int pb, px, py, ps;
 
@@ -245,9 +374,10 @@ namespace
             // I_Quit never pumps D_ProcessEvents, so posting a joystick event
             // here would go nowhere. I_Quit already put the A:\> prompt on
             // screen, so the only pad action left is START, which stands in for
-            // typing DOOM at it.
-            const int newly = buttons & ~pb;
-            pb = buttons; px = xmove; py = ymove; ps = strafemove;
+            // typing DOOM at it. Read from `legacy` whatever the layout: there
+            // is nothing else on that screen for a chord to disambiguate.
+            const int newly = legacy & ~pb;
+            pb = legacy; px = xmove; py = ymove; ps = strafemove;
             if (newly & (1 << JOYB_MENU_BIT))
             {
                 doom_restart_game();

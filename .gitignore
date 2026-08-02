@@ -70,5 +70,6 @@ GTAGS
 *.midx
 *.midx.z
 *.wad
+*.WAD
 *.whd
 /cmake-*/

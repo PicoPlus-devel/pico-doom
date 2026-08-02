@@ -185,11 +185,12 @@ keyed to the WAD — a save made with a different WAD is refused rather than
 loaded as garbage.
 
 The settings file covers everything this build can actually change: SFX and
-music volume, messages on/off, screen size, mouse sensitivity, gamma (**F11**)
-and the FPS overlay (**\\**). Changes are written when you leave the menus and
-when you quit, so gamma or screen size changed with a hotkey mid-game is stored
-the next time you open and close the menu. A missing, damaged or older-version
-file is ignored and the built-in defaults are used.
+music volume, messages on/off, screen size, mouse sensitivity, gamma (**F11**),
+the FPS overlay (**\\**) and the NES pad layout. Changes are written when you
+leave the menus and when you quit, so gamma or screen size changed with a hotkey
+mid-game is stored the next time you open and close the menu. A missing or
+damaged file is ignored and the built-in defaults are used; a file from an older
+version is read for the settings it does have.
 
 Without a card the game runs normally — the load menu is empty, saving reports
 the reason, and settings reset at power-off. Insert a card and it starts working
@@ -381,8 +382,8 @@ Notes:
   on HDMI *and* the I2S DAC simultaneously instead of switching sinks.
 * **NES/SNES controllers** — configs 2 and 13 poll two legacy controller
   ports through the vendored pico_shared `nespad` PIO driver; SNES pads are
-  auto-detected. Mapping: B/A = fire, Y/B = run, SNES A = strafe, SNES X =
-  use, SNES L/R = strafe left/right, Select/Start = previous/next weapon.
+  auto-detected. They use the same layout as the USB pads (see
+  [Gamepad](#gamepad) below), including the optional NES pad layout.
 * **Flash size for bootloader builds** — the bootloader map is sized per board.
   Fruit Jam (16 MB) and Feather (8 MB) place the WHX at `0x10400000`. The two
   Pico 2 boards (`adafruitdvisd`, `murmulatorm2`) cap the map to the 4 MB chip:
@@ -478,6 +479,29 @@ The shoulder buttons cycle weapons rather than strafing directly; strafe by
 holding **A** and pushing left/right, which is how vanilla Doom's strafe button
 works. A plain NES pad has no shoulders, so there Start opens the menu and
 Select is the only weapon cycle — it still reaches every weapon.
+
+#### NES pad layout
+
+The layout above wants six buttons and two shoulders. A plain NES controller has
+four buttons, and with the default layout it ends up without a Use button, so you
+cannot open a door. **Options → Nes Pad** switches every pad — the legacy ports
+and USB alike — to a layout built for those four buttons:
+
+| Control | In game | In a menu |
+|---------|---------|-----------|
+| D-pad | Move and turn | Navigate |
+| **A** | Fire | Select |
+| **B** | Hold to strafe with the D-pad | Back |
+| **Start** | Open / activate | — |
+| **Select** | Next weapon | — |
+| **Select + Start** | Open / close the menu | Open / close the menu |
+
+There is no run button left, so the marine always runs while this is on. The
+setting is stored on the SD card, and you can reach it with the pad alone: in the
+default layout **Start** opens the menu, the D-pad moves and **A** selects.
+
+It suits the NES-shelled MantaPad and an original NES controller; a SNES pad
+keeps working, with **B**/**A** as NES A and **Y**/**X** as NES B.
 
 ## Known issues
 

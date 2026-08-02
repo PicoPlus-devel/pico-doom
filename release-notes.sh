@@ -52,9 +52,9 @@ done
     echo "| Saved games | \`/SAVES/doomsav0.dsg\` … \`/SAVES/doomsav5.dsg\` |"
     echo "| Settings | \`/settings_DOOM.dat\` |"
     echo
-    echo "Settings covers the volumes, messages, screen size, mouse sensitivity, gamma"
-    echo "and the FPS overlay. \`/SAVES\` is created for you on the first save, and the"
-    echo "naming matches pico-infonesPlus so one card can serve both."
+    echo "Settings covers the volumes, messages, screen size, mouse sensitivity, gamma,"
+    echo "the FPS overlay and the NES pad layout. \`/SAVES\` is created for you on the"
+    echo "first save, and the naming matches pico-infonesPlus so one card can serve both."
     echo
     echo "The game still runs without a card; you just cannot save, and settings reset"
     echo "at power-off. A card inserted after boot is picked up within a few seconds."

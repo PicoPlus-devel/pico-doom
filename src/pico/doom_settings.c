@@ -16,8 +16,8 @@
 //	card. The tiny build compiles out m_config.c's default.cfg handling
 //	(NO_USE_SAVE_CONFIG / NO_USE_BOUND_CONFIG), so this stands in for it,
 //	covering exactly the settings this port can actually change: the two
-//	volumes, messages, screen size, mouse sensitivity, gamma and the FPS
-//	overlay.
+//	volumes, messages, screen size, mouse sensitivity, gamma, the FPS
+//	overlay and the NES pad layout.
 //
 //	Format follows pico-infonesPlus' /settings_<TAG>.dat convention
 //	(pico_shared/settings.cpp): a fixed-size record with a leading version,
@@ -34,12 +34,20 @@
 
 #include "doomtype.h"
 #include "picodoom.h"
+#include "m_controls.h"
 
 #include "doom_sdcard.h"
 #include "doom_settings.h"
 
 #define DOOM_SETTINGS_PATH    "/settings_DOOM.dat"
-#define DOOM_SETTINGS_VERSION 1
+#define DOOM_SETTINGS_VERSION 2
+
+// Version 1 is the same 16 bytes without the NES pad layout, and settings_gather
+// has always zeroed the record, so the byte the field now occupies reads back as
+// "off" out of every file version 1 ever wrote. Accepting it costs one comparison
+// and saves everyone their volumes; the shadow keeps the version it read, so the
+// next flush quietly rewrites the file as version 2.
+#define DOOM_SETTINGS_VERSION_MIN 1
 
 // The engine globals this covers. Declared here rather than pulled in from the
 // doom/ headers — several of them (showMessages) have no header of their own
@@ -65,7 +73,8 @@ typedef struct {
     int8_t mouse_sensitivity;  // 0..9
     int8_t usegamma;           // 0..4
     int8_t show_fps;           // 0..1
-    int8_t reserved[7];        // zeroed; bump the version before using any
+    int8_t nes_pad_scheme;     // 0..1
+    int8_t reserved[6];        // zeroed; bump the version before using any
 } doom_settings_t;
 
 static_assert(sizeof(doom_settings_t) == 16, "settings record is an on-disk format");
@@ -96,6 +105,7 @@ static void settings_gather(doom_settings_t *rec)
 #if USE_FPS
     rec->show_fps          = show_fps ? 1 : 0;
 #endif
+    rec->nes_pad_scheme    = nes_pad_scheme ? 1 : 0;
 }
 
 static void settings_apply(const doom_settings_t *rec)
@@ -112,6 +122,9 @@ static void settings_apply(const doom_settings_t *rec)
 #if USE_FPS
     show_fps         = rec->show_fps ? 1 : 0;
 #endif
+    // Not a plain assignment: the NES layout has no run button, so the flag
+    // drags joybspeed along with it.
+    M_SetNesPadScheme(rec->nes_pad_scheme);
 }
 
 void doom_settings_load(void)
@@ -123,11 +136,13 @@ void doom_settings_load(void)
         printf("settings: no usable " DOOM_SETTINGS_PATH ", using defaults\n");
         return;
     }
-    if (got != sizeof(rec) || rec.version != DOOM_SETTINGS_VERSION) {
+    if (got != sizeof(rec) || rec.version < DOOM_SETTINGS_VERSION_MIN
+            || rec.version > DOOM_SETTINGS_VERSION) {
         printf("settings: " DOOM_SETTINGS_PATH " is %u bytes version %u,"
-               " expected %u/%u - using defaults\n",
+               " expected %u/%u..%u - using defaults\n",
                (unsigned)got, (unsigned)rec.version,
-               (unsigned)sizeof(rec), DOOM_SETTINGS_VERSION);
+               (unsigned)sizeof(rec), DOOM_SETTINGS_VERSION_MIN,
+               DOOM_SETTINGS_VERSION);
         return;
     }
 
@@ -140,9 +155,10 @@ void doom_settings_load(void)
     shadow_valid = true;
 
     printf("settings: loaded sfx %d music %d messages %d size %d mouse %d"
-           " gamma %d fps %d\n",
+           " gamma %d fps %d nespad %d\n",
            rec.sfx_volume, rec.music_volume, rec.show_messages,
-           rec.screenblocks, rec.mouse_sensitivity, rec.usegamma, rec.show_fps);
+           rec.screenblocks, rec.mouse_sensitivity, rec.usegamma, rec.show_fps,
+           rec.nes_pad_scheme);
 }
 
 void doom_settings_flush(void)

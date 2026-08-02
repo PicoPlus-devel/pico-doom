@@ -111,6 +111,7 @@ target_sources(game INTERFACE
     tables.c            tables.h
     v_diskicon.c        v_diskicon.h
     v_video.c           v_video.h
+    vpatch_builtin.c
                         v_patch.h
     w_checksum.c        w_checksum.h
     w_main.c            w_main.h
