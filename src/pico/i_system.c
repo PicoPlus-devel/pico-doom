@@ -519,10 +519,11 @@ void __attribute((noreturn)) I_Quit (void)
 #if USE_PICO_NET
     piconet_stop();
 #endif
-    // Before anything claims display_frame_freed below: doom_settings_flush()
-    // takes that semaphore itself via pd_start_save_pause(). This is also the
-    // only chance to persist changes made outside the menus (F11 gamma, +/-
-    // screen size, '\' FPS overlay), since I_AtExit handlers never run here.
+    // The only chance to persist changes made outside the menus (F11 gamma,
+    // +/- screen size, '\' FPS overlay), since I_AtExit handlers never run
+    // here. Kept ahead of the semaphore dance below because the card has to
+    // still be usable, not because the flush touches the renderer — it no
+    // longer takes the save pause (see doom_settings.c).
     doom_settings_flush();
 
     // Launched from the pico-bootLoader: the picker is where we are headed, so

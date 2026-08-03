@@ -33,7 +33,6 @@
 #include "pico/stdlib.h"
 
 #include "doomtype.h"
-#include "picodoom.h"
 #include "m_controls.h"
 
 #include "doom_sdcard.h"
@@ -167,20 +166,27 @@ void doom_settings_flush(void)
     settings_gather(&rec);
 
     if (shadow_valid && !memcmp(&rec, &shadow, sizeof(rec))) {
-        return; // unchanged: no card access, no pause, nothing to see
+        return; // unchanged: no card access, nothing to see
     }
 
-    // Checked before the pause so a cardless board does not stutter every time
-    // a menu closes. doom_sd_ready() rate-limits its own retries.
+    // doom_sd_ready() rate-limits its own retries, so a cardless board does not
+    // touch the card every time a menu closes.
     if (!doom_sd_ready()) {
         return;
     }
 
-    // Same protection the flash writes used to get: core 1 parked on the
-    // "saving" frame and the sound faded out around the I/O.
-    pd_start_save_pause();
+    // Deliberately no pd_start_save_pause() around this. That parks core 1 on
+    // the "saving" frame and fades the sound, which is the right thing when the
+    // player asked to save a game (see g_game.c) -- but this flush is invisible,
+    // runs on every menu close, and writes 16 bytes over SPI. There is no XIP
+    // hazard to protect against either: SPI traffic does not stop core 1, which
+    // is why the save-game *load* path already skips the pause.
+    //
+    // It also has to be safe wherever M_ClearMenus() is reached, and that
+    // includes the title screen and the instant G_DeferedInitNew() has queued a
+    // new game -- states that two-semaphore handshake with core 1 was never
+    // exercised in, since until saves moved off flash it only ever ran mid-level.
     int fr = doom_sd_write_file(DOOM_SETTINGS_PATH, &rec, sizeof(rec));
-    pd_end_save_pause();
 
     // The shadow is updated either way. A card that is full or write protected
     // would otherwise make every single menu close pause the game to fail
