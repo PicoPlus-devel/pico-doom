@@ -10,8 +10,16 @@
 #   pico_fatfs               (FatFs R0.15 + SD card over HW-SPI / PIO-SPI)
 #   pico_psram               (RP2350 QMI CS1 PSRAM init; trimmed, see its CMakeLists)
 #
-# Resync by re-copying from pico_shared/drivers — only pico_audio_i2s/CMakeLists.txt
-# is patched (target renamed). usb_hid is copied from the pico_shared root
+# Resync by re-copying from pico_shared/drivers, then re-apply the local patches:
+#   pico_audio_i2s/CMakeLists.txt  target renamed (clashes with pico-extras)
+#   nespad/nespad.{h,cpp}          nespad_read_ready(), the non-blocking "finish
+#                                  will not block" check i_usbhid.cpp gates on
+#   pico_hdmi/hstx.h               dropped a second declaration of
+#                                  video_output_core1_run() that video_output.h
+#                                  (included there) already provides
+#   pico_psram/SetupPsram.c        cast a uint32_t for %x in a printf
+# The last three are warning/robustness fixes worth pushing upstream.
+# usb_hid is copied from the pico_shared root
 # (hid_app.cpp, gamepad.cpp, gamepad.h) and depends on the 3rdparty/tusb_xinput
 # submodule for the XInput host class driver. nespad is copied from the
 # pico_shared root as well (nespad.h, nespad.cpp, nespad.pio). pico_fatfs

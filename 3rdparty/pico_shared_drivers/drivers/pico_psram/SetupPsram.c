@@ -210,7 +210,9 @@ int32_t __no_inline_not_in_flash_func(SetupPsram)(int psramCS)
     if (readback != 0x12345678)
     {
         _psram_size = 0;
-        printf("PSRAM test failed, readback = 0x%08x\n", readback);
+        // Cast, not %08lx: uint32_t is long unsigned here but plain unsigned on
+        // other targets, so the cast is the portable way to match %x.
+        printf("PSRAM test failed, readback = 0x%08x\n", (unsigned)readback);
         return 0;
     }
     return _psram_size;
