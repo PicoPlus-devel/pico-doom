@@ -68,27 +68,6 @@ Put the Fruit Jam into BOOTSEL mode and copy **both** `.uf2` files to it over
 USB. The device reboots after the first file, so you may need to re-enter the
 bootloader before copying the second one.
 
-### Building from an IDE
-
-The `<board>-build*.sh` scripts pass the board, the variant, the SDK paths and a
-forced `-include` of the board's `_cflags.h` on the `cmake` command line. VS
-Code's CMake Tools configures `CMakeLists.txt` directly and does none of that,
-so it needs one line changed — near the top of `CMakeLists.txt`:
-
-```cmake
-set(DOOM_BUILD "fruitjam-full" CACHE STRING "...")
-```
-
-`<board>` is `fruitjam`, `adafruitdvisd`, `murmulatorm2` or `featherrp2350`,
-optionally suffixed `-full` for the SD→PSRAM variant. Delete the build
-directory after changing it, since the value is cached. Export `PICO_SDK_PATH`,
-`PICO_EXTRAS_PATH` and (for `fruitjam`/`featherrp2350`) `PICO_PIO_USB_PATH`
-before starting the IDE, as `pico-env.sh` does for the scripts.
-
-This only applies when nothing else is driving cmake: the build scripts pass
-`-DPICO_BOARD`, which switches the block off, so they behave exactly as before.
-A given configuration builds byte-identically either way.
-
 There is a single `doom_tiny.uf2` that supports **all** input devices (USB
 keyboard, mouse, and gamepads). The old per-input variants
 (`doom_tiny_usb`, `doom_tiny_nost`, `doom_tiny_nost_usb`) no longer exist. USB
