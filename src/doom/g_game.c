@@ -1922,10 +1922,15 @@ void G_DoSaveGame (void)
     // The flash slot writer used to own this pause; the SD card needs it for the
     // same reason, minus the XIP hazard: it parks core 1 on the "saving" frame
     // and fades the sound so the card I/O is not heard as a stutter.
-    pd_start_save_pause();
+    // The write goes ahead either way: a lost handshake with core 1 costs the
+    // "saving" frame and a bit of audio, not the save. Only unwind the pause if
+    // it was actually taken.
+    const boolean paused = pd_start_save_pause();
     int sd_result = doom_sd_write_file(P_SaveGameFile(savegameslot), save_buffer,
                                        (uint32_t)(bo.cur - save_buffer));
-    pd_end_save_pause();
+    if (paused) {
+        pd_end_save_pause();
+    }
     if (sd_result != 0) {
         // M_StartMessage keeps the pointer rather than copying, so the text has
         // to outlive this frame.

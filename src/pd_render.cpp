@@ -2996,10 +2996,41 @@ extern "C" {
 #include "i_picosound.h"
 }
 static uint8_t old_video_type;
-void pd_start_save_pause(void) {
-    I_PicoSoundFade(false);
-    while (!sem_available(&display_frame_freed) || I_PicoSoundFading()) {
+
+// The frame handshake is a strict ping-pong: core 0 takes display_frame_freed
+// and hands back render_frame_ready, core 1 does the inverse in
+// new_frame_stuff(). Pausing spends two display permits and produces two render
+// permits — the same shape as two ordinary frames, and balanced only for as long
+// as core 1 keeps cycling. These waits used to spin forever when it did not,
+// which is how a settings flush from the title screen locked the machine up with
+// the picture still on screen and core 1 still running.
+//
+// A real pause settles in a frame or two plus the ~171 ms sound fade
+// (65536/FADE_STEP samples at PICO_SOUND_SAMPLE_FREQ), and that fade only
+// advances while audio keeps flowing, so it is a second thing that can stall
+// here. Two seconds is far past both, and short enough that a lost handshake
+// costs a hiccup and an unpaused save instead of the whole console.
+#define SAVE_PAUSE_TIMEOUT_MS 2000
+
+static bool wait_for_free_frame(bool and_fade) {
+    absolute_time_t deadline = make_timeout_time_ms(SAVE_PAUSE_TIMEOUT_MS);
+    while (!sem_available(&display_frame_freed) || (and_fade && I_PicoSoundFading())) {
         I_UpdateSound();
+        if (time_reached(deadline)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// False means core 1 never completed the handshake. The caller must then skip
+// pd_end_save_pause() and carry on unpaused — see G_DoSaveGame().
+bool pd_start_save_pause(void) {
+    I_PicoSoundFade(false);
+    if (!wait_for_free_frame(true)) {
+        // Nothing claimed yet, so backing out costs only the fade.
+        I_PicoSoundFade(true);
+        return false;
     }
     sem_acquire_blocking(&display_frame_freed);
     old_video_type = next_video_type;
@@ -3010,10 +3041,22 @@ void pd_start_save_pause(void) {
     next_video_type = VIDEO_TYPE_SAVING;
     sem_release(&render_frame_ready);
     // need to be sure we've picked up the change
-    while (!sem_available(&display_frame_freed)) {
-        I_UpdateSound();
+    if (!wait_for_free_frame(false)) {
+        // Core 1 never gave a frame back. Leave the ping-pong as we found it:
+        // take back the frame handed over above if core 1 has not picked it up
+        // (if it has, it will release display_frame_freed itself, and the
+        // surplus is capped by the semaphore's max), and return the permit
+        // taken above so core 0 keeps drawing instead of blocking on the next
+        // pd_begin_frame(). The caller skips pd_end_save_pause(), whose release
+        // would otherwise leave render_frame_ready permanently one ahead.
+        next_video_type = old_video_type;
+        sem_try_acquire(&render_frame_ready);
+        sem_release(&display_frame_freed);
+        I_PicoSoundFade(true);
+        return false;
     }
     sem_acquire_blocking(&display_frame_freed);
+    return true;
 }
 
 void pd_end_save_pause(void) {

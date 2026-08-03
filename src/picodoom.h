@@ -5,6 +5,7 @@
 extern "C" {
 #endif
 
+#include <stdbool.h> // pd_start_save_pause reports whether the pause took
 #include "m_fixed.h"
 
 typedef enum {
@@ -28,7 +29,10 @@ void pd_add_plane_column(int x, int yl, int yh, fixed_t scale, int floor, int fd
 void pd_end_frame(int wipe_start);
 uint8_t *pd_get_work_area(uint32_t *size);
 #if PICO_ON_DEVICE
-void pd_start_save_pause(void);
+// Parks core 1 on the "saving" frame and fades the sound. False means core 1
+// did not complete the handshake within SAVE_PAUSE_TIMEOUT_MS; the caller must
+// then NOT call pd_end_save_pause(), and just proceeds unpaused.
+bool pd_start_save_pause(void);
 void pd_end_save_pause(void);
 const uint8_t *get_end_of_flash(void);
 #endif
