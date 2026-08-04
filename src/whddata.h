@@ -6,6 +6,9 @@
 #if !USE_WHD
 typedef char textureorflatname_def_t[9];
 typedef const char* textureorflatname_t;
+#ifndef __STRING
+#define __STRING(x) #x /* glibc-ism; missing on MinGW and other non-glibc hosts */
+#endif
 #define TEXTURE_NAME(x) __STRING(x)
 #define TEXTURE_NAME_NONE ""
 #define FLAT_NAME(x) __STRING(x)
@@ -740,8 +743,25 @@ enum {
     VPATCH_LIST,
     NUM_VPATCHES,
 };
+// Handles past the WHD's own patches. These resolve to vpatches compiled into
+// the firmware (vpatch_builtin.c) rather than to a WHD lump, so a new menu
+// graphic does not change NUM_VPATCHES -- which r_data_whd.c checks the WHD
+// against, and which would otherwise invalidate every existing .whd file.
+//
+// These do NOT fit in vpatchname_t or vpatch_handle_small_t (both uint8_t
+// above), so they cannot be stored in a menuitem_t name or a status-bar patch
+// slot -- they silently truncate to some unrelated patch. Pass them to
+// V_DrawPatchDirect, which takes a vpatch_handle_large_t; the display list
+// carries 9 bits, which is what the static_assert below guards.
+enum {
+    VPATCH_M_NESPAD = NUM_VPATCHES,
+    VPATCH_BUILTIN_END,
+};
+#define VPATCH_BUILTIN_FIRST NUM_VPATCHES
+#define NUM_BUILTIN_VPATCHES (VPATCH_BUILTIN_END - VPATCH_BUILTIN_FIRST)
 #include <assert.h>
-static_assert(NUM_VPATCHES < 512, "");
+// 9 bits is what vpatchlist_t::entry.patch_handle holds (see v_patch.h).
+static_assert(VPATCH_BUILTIN_END < 512, "");
 #endif
 
 typedef PACKED_STRUCT({

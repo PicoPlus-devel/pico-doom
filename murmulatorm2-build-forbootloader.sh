@@ -5,15 +5,17 @@
 # WHX at 0x10200000 (WHX_ADDR below), which ends ~0x103B7018 -- under the 4 MB
 # mark. Fits a genuine 4 MB Pico 2. WHX_ADDR must match the BUILD_FOR_BOOTLOADER
 # TINY_WAD_ADDR in murmulatorm2_cflags.h.
+cd "$(dirname "$0")" || exit 1
 TAG=murmulatorm2
+. ./pico-env.sh
 BUILD=build_bl_${TAG}
 WHX_ADDR=0x10200000
 export CFLAGS="-include $(pwd)/${TAG}_cflags.h -g3 -ggdb"
 export CXXFLAGS="-include $(pwd)/${TAG}_cflags.h -g3 -ggdb"
 cmake -S . -B $BUILD \
     -DCMAKE_BUILD_TYPE=MinSizeRel \
-    -DPICO_SDK_PATH=3rdparty/pico-sdk \
-    -DPICO_EXTRAS_PATH=3rdparty/pico-extras \
+    -DPICO_SDK_PATH="$PICO_SDK_PATH" \
+    -DPICO_EXTRAS_PATH="$PICO_EXTRAS_PATH" \
     -DPICOTOOL_FETCH_FROM_GIT_PATH="$(pwd)/picotool" \
     -DPICO_BOARD=pico2 \
     -DUSE_HSTX=1 \
@@ -22,9 +24,9 @@ cmake -S . -B $BUILD \
     -DBUILD_FOR_BOOTLOADER=ON \
     -DDOOM_APP_SIZE=0x180000 \
     -DDOOM_FLASH_TOTAL=0x400000 \
-    ${CMAKE_ARGS} "$@"
+    ${CMAKE_ARGS} "$@" || exit 1
 
-make -C $BUILD -j$(nproc)
+make -C $BUILD -j$(nproc) || exit 1
 
 PICOTOOL=./picotool/picotool-build/picotool
 if [ ! -x "$PICOTOOL" ]; then

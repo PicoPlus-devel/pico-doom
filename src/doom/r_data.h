@@ -121,10 +121,21 @@ int R_FlatNumForName(flatname_t name);
 #define R_TextureNumForName(x) (x)
 #define R_CheckTextureNumForName(x) (x)
 #define R_FlatNumForName(x) (x)
+#include "w_wad.h" // W_CacheLumpNum, for the inline resolver below
 extern const uint16_t *whd_vpatch_numbers;
+// vpatches the firmware carries itself, for menu graphics with no WHD lump.
+// See vpatch_builtin.c and the VPATCH_BUILTIN_FIRST enum in whddata.h.
+extern const uint8_t *const builtin_vpatches[];
 //#define check_vpatch_handle(handle) ({assert((handle)<NUM_VPATCHES); whd_vpatch_numbers[handle]; })
 #define check_vpatch_handle(handle) whd_vpatch_numbers[handle]
-#define resolve_vpatch_handle(handle) ((const patch_t *)W_CacheLumpNum(check_vpatch_handle(handle), PU_STATIC))
+// A function rather than a macro so the handle is evaluated once: this is on
+// the per-patch path in V_DrawPatchList.
+static inline const patch_t *resolve_vpatch_handle(vpatch_handle_large_t handle) {
+    if (handle >= VPATCH_BUILTIN_FIRST) {
+        return (const patch_t *)builtin_vpatches[handle - VPATCH_BUILTIN_FIRST];
+    }
+    return (const patch_t *)W_CacheLumpNum(check_vpatch_handle(handle), PU_STATIC);
+}
 #endif
 
 #endif

@@ -112,6 +112,43 @@ void I_GetWindowPosition(int *x, int *y, int w, int h);
 // Joystic/gamepad hysteresis
 extern unsigned int joywait;
 
+// The 80x25 VGA text screen (ENDOOM + the exit-screen DOS prompt) is available
+// on both video paths; i_system.c needs to know that too. What differs is only
+// how 640 pixels are produced: scanvideo needs two linked scanline buffers and
+// the raw_run_half PIO path, whereas the HSTX scanline callback is handed a
+// 640-pixel line buffer directly.
+#undef SUPPORT_TEXT
+#define SUPPORT_TEXT 1
+#undef SUPPORT_TEXT_SCANVIDEO
+#if USE_HSTX
+#define SUPPORT_TEXT_SCANVIDEO 0
+#else
+#define SUPPORT_TEXT_SCANVIDEO 1
+#endif
+
+// Text screen geometry, shared by both renderers.
+#define TXT_SCREEN_W 80
+#define TXT_SCREEN_H 25
+#define TXT_CHAR_W 8
+#define TXT_CHAR_H 16
+#define TXT_ROW_BYTES (TXT_SCREEN_W * 2)
+
+#if SUPPORT_TEXT
+// The 80x25 char/attr cells the renderers read; NULL until text_screen_prepare().
+extern uint8_t *text_screen_data;
+
+// Carve text_screen_data and the decoded 8x16 CP437 font out of the renderer's
+// idle work area and blank the screen. The font is compiled into the binary, so
+// this needs neither the WAD nor the zone allocator. Returns the decode scratch
+// buffer (>= 512 + 1024 bytes) for the caller to reuse.
+uint8_t *text_screen_prepare(void);
+
+// Switch the display to text mode, starting the video pipeline first if
+// I_InitGraphics() has not run. False means this build could not bring video up
+// unaided and nothing is on screen. See i_video.c for the details.
+boolean text_screen_show(void);
+#endif
+
 #if DOOM_TINY
 enum {
     VIDEO_TYPE_NONE,   // note order is important as we compare (also there is an array of handlers)

@@ -44,6 +44,12 @@
 #if PICO_RP2350
 #include "hardware/structs/qmi.h"
 #endif
+#if PICO_ON_DEVICE
+#include "pico/doom_sdcard.h"
+#if WHD_LOAD_FROM_SD
+#include "pico/whd_sdload.h"
+#endif
+#endif
 //
 // D_DoomMain()
 // Not a globally visible function, just included for source reference,
@@ -316,12 +322,12 @@ int main(int argc, char **argv)
 #endif
 #endif
 #if 1
-    // 378 MHz @ 1.60 V — the proven pico-infonesPlus overclock for this
+    // 378 MHz @ 1.50 V — the proven pico-infonesPlus overclock for this
     // board. Sequence ported from pico_shared's FrensHelpers.cpp
     // setClocksAndStartStdio() (378 MHz / PIO-USB path); keep it in step
     // with that helper.
     vreg_disable_voltage_limit();
-    vreg_set_voltage(VREG_VOLTAGE_1_60);
+    vreg_set_voltage(VREG_VOLTAGE_1_50);
     // Relax XIP timing BEFORE raising clk_sys: 4x flash divisor (378/4 =
     // 94.5 MHz) plus rxdelay/cooldown margins. Whole-register value is the
     // hardware-proven profile from FrensHelpers.cpp — without it, XIP
@@ -387,6 +393,21 @@ int main(int argc, char **argv)
 #endif
 #if LIB_PICO_STDIO
     stdio_init_all();
+#endif
+#if PICO_ON_DEVICE
+    // Both of these need the final clk_sys/clk_peri from above: PSRAM timing
+    // and the SD SPI baudrate derive from them.
+#if WHD_LOAD_FROM_SD
+    // Mounts the card itself, and must precede D_DoomMain's W_AddFile, which
+    // reads the WHD directly from the PSRAM window.
+    whd_sdload();
+#else
+    // Save games and settings live on the card here too, but nothing about
+    // booting depends on it: if there is no card, the game runs and only
+    // persistence is lost. doom_sd_ready() retries later, so a card inserted
+    // after power-on still works.
+    doom_sd_mount();
+#endif
 #endif
 #if PICO_BUILD
     I_Init();

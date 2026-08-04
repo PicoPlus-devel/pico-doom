@@ -15,7 +15,8 @@
 #define PICO_SCANVIDEO_PIXEL_GSHIFT 5
 #define PICO_SCANVIDEO_PIXEL_BSHIFT 0
 #define PICO_SCANVIDEO_SYNC_PIN_BASE 6
-// SD pins (vestigial — no SD driver in this port; kept as wiring documentation)
+// SD pins (SPI0-capable; used by the doom_tiny_full WHD_LOAD_FROM_SD variant,
+// wiring documentation otherwise). SD_TX = MOSI, SD_RX = MISO.
 #define SD_TX 7
 #define SD_RX 4
 #define SD_SCK 6
@@ -42,12 +43,16 @@
 // PCM510x has no volume register and benefits from the DC blocker in
 // audio_i2s.c (see the I2S_AUDIO_COMPENSATE_DC_OFFSET note in audio_i2s.h).
 #define I2S_AUDIO_COMPENSATE_DC_OFFSET 1
-// No TLV320 codec on this board. The pins are unused (-1 is fine, the codec
-// init never runs for driver 2), but WIIPAD_I2C must stay a valid i2c
-// instance: tlv320dac3100.c uses it as an i2c_inst_t* in always-compiled code.
+// Wii extension port (NES/SNES Classic Mini, Wii Classic Controller (Pro)),
+// read over I2C by src/pico/doom_wiipad.cpp. The M2's connector is on GPIO
+// 0/1 = i2c0 SDA/SCL — the same pins the UART would want, which is exactly
+// why NO_USE_UART is set above. Matches BoardConfigs.cmake HW_CONFIG 13.
+// No TLV320 codec on this board, so the pad has the bus to itself; WIIPAD_I2C
+// must still be a valid i2c instance because tlv320dac3100.c uses it as an
+// i2c_inst_t* in always-compiled code.
 #define WIIPAD_I2C i2c0
-#define WII_PIN_SDA -1
-#define WII_PIN_SCL -1
+#define WII_PIN_SDA 0
+#define WII_PIN_SCL 1
 // Pin the pico_hdmi audio Data-Island ring at 0x20076000. That address is
 // SHORTPTR_BASE + 0x40000 — the top of Doom's zone heap (see i_system.c's
 // I_ZoneBase()) — and __HeapLimit is 0x20080000, so the 36 KB ring lives in
@@ -98,6 +103,14 @@
 #define NES_PIN_LAT_1 21
 #define NES_PIO_1 pio1
 
+// --- Status LEDs (src/pico/doom_leds.c) -------------------------------------
+// -1 means the board does not have it, as with the NES pins above.
+// Plain onboard LED, blinked every 60 frames. = PICO_DEFAULT_LED_PIN of the
+// Pico 2 the Murmulator carries.
+#define DOOM_LED_PIN 25
+// No NeoPixels on this board, so no VU meter.
+#define DOOM_VU_WS2812_PIN -1
+
 // Move the WAD base address up so it lives past the bootloader app slot.
 // Standalone build: 0x10080000 (image at 0x10000000, WHX right after the
 // 512 KB slot — fits a genuine 4 MB Pico 2).
@@ -115,6 +128,25 @@
 #define TINY_WAD_ADDR 0x10200000
 #else
 #define TINY_WAD_ADDR 0x10080000
+#endif
+
+// --- SD card and PSRAM ------------------------------------------------------
+// SD SPI instance for the vendored pico_fatfs driver (the SD_* pins above are
+// valid hardware-SPI0 pins) and the PSRAM chip select: the Murmulator M2
+// carries its PSRAM on QMI CS1 = GPIO 8 — required for this variant. Values
+// mirror pico-infonesPlus/pico_shared/BoardConfigs.cmake HW_CONFIG 13.
+// The card is used by every build, for save games and settings
+// (src/pico/doom_sdcard.c); doom_tiny_full additionally streams the WHD off
+// it at boot.
+#define SDCARD_SPI spi0
+#define SDCARD_PIO pio1
+#define PSRAM_CS_PIN 8
+#if WHD_LOAD_FROM_SD
+// The full WHD is copied from /roms/doom/doom.whd into PSRAM at boot
+// (src/pico/whd_sdload.c) and read zero-copy through the cached XIP CS1
+// window — same address for standalone and bootloader builds.
+#undef TINY_WAD_ADDR
+#define TINY_WAD_ADDR 0x11000000
 #endif
 
 #endif

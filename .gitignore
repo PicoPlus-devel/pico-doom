@@ -29,7 +29,19 @@ DOOM*.pcx
 HTIC*.pcx
 HEXEN*.pcx
 STRIFE*.pcx
-/build*
+# Build trees: build/, build_fruitjam/, build_bl_full_murmulatorm2/, ...
+# Split in two so buildAll.sh is not caught. Do not widen this back to /build*:
+# that swallows buildAll.sh, and excluding it again with a !negation still makes
+# `git check-ignore --no-index` report the file as matching an ignore rule, which
+# greys it out in editors.
+/build
+/build_*
+
+# buildAll.sh output and the generated release body. The whd_gen binaries under
+# prebuilt/ ARE committed -- they are built by hand and copied into releases/ by
+# buildAll.sh, so only the copies here are ignored.
+/releases/
+/release-notes.md
 
 *.uf2
 
@@ -58,5 +70,6 @@ GTAGS
 *.midx
 *.midx.z
 *.wad
+*.WAD
 *.whd
 /cmake-*/

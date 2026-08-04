@@ -66,6 +66,10 @@
 #include "dstrings.h"
 #include "sounds.h"
 
+#if PICO_ON_DEVICE
+#include "doom_sdcard.h"
+#endif
+
 // SKY handling - still the wrong place.
 #include "r_data.h"
 #include "r_sky.h"
@@ -1722,11 +1726,9 @@ void R_ExecuteSetViewSize (void);
 
 char	savename[256];
 
-void G_LoadGame (char* name) 
+void G_LoadGame (char* name)
 {
-#if !NO_FILE_ACCESS
     M_StringCopy(savename, name, sizeof(savename));
-#endif
     gameaction = ga_loadgame;
 }
 
@@ -1756,10 +1758,26 @@ void G_DoLoadGame (void) {
     fseek(save_stream, 0, SEEK_SET);
     fread(load_buffer, 1, fsize, save_stream);
 #else
-    flash_slot_info_t slots[g_load_slot+1];
-    P_SaveGameGetExistingFlashSlotAddresses(slots, g_load_slot+1);
-    if (!slots[g_load_slot].data) return;
-    const uint8_t *load_buffer = slots[g_load_slot].data;
+    // Save games live on the SD card; read the whole thing into the render
+    // work area, which is about to be rebuilt for the new level anyway. No
+    // pd_start_save_pause() here: unlike a flash write, SPI traffic does not
+    // stop core 1 executing, and the level load that follows drowns out any
+    // audio hiccup.
+    uint8_t *load_buffer = pd_get_work_area(&size);
+    uint32_t fsize = 0;
+    if (!doom_sd_read_file(savename, load_buffer, size, &fsize)) {
+        // doom_sd_read_file() only fills fsize when the file was found but did
+        // not fit. Anything else is missing-or-unreadable: the menu will not
+        // offer a slot whose file is absent, so in practice that means the card
+        // was pulled between opening the menu and picking the slot.
+        players[consoleplayer].message = fsize
+                ? "Load failed: save game is too large."
+                : "Load failed: could not read the save game.";
+        return;
+    }
+    // Counterpart to the "SAVE GAME SIZE" line further down; without it a load
+    // was the one operation that left no trace on the serial console.
+    printf("LOAD GAME SIZE %d from %s\n", (int)fsize, savename);
 #endif
     sg_bi = &bi;
     th_bit_input_init(sg_bi, load_buffer);
@@ -1773,6 +1791,7 @@ void G_DoLoadGame (void) {
         fclose(save_stream);
 #endif
 #if DOOM_TINY
+        printf("LOAD GAME REJECTED: header mismatch (wrong WAD or version)\n");
         players[consoleplayer].message = "Load failed: invalid game or WAD mismatch.";
 #endif
         return;
@@ -1816,9 +1835,7 @@ void G_DoLoadGame (void) {
 #if PICO_ON_DEVICE
 static boolean save_game_clear(int key) {
     if (key == key_menu_confirm) {
-        uint32_t size;
-        uint8_t *tmp_buffer = pd_get_work_area(&size);
-        P_SaveGameWriteFlashSlot(savegameslot, NULL, 0, tmp_buffer);
+        doom_sd_delete_file(P_SaveGameFile(savegameslot));
         M_SaveGame(0);
         return true;
     }
@@ -1875,7 +1892,6 @@ void G_DoSaveGame (void)
     th_bit_output bo;
     uint32_t size;
     uint8_t *save_buffer = pd_get_work_area(&size);
-    save_buffer += 4096; size -= 4096; // we need 4k for flash writing
     sg_bo = &bo;
     th_bit_output_init(sg_bo, save_buffer, size);
 #endif
@@ -1903,8 +1919,27 @@ void G_DoSaveGame (void)
 #endif
     printf("SAVE GAME SIZE %d\n", (int)(bo.cur - save_buffer));
 #if PICO_ON_DEVICE
-    if (!P_SaveGameWriteFlashSlot(savegameslot, save_buffer, (int)(bo.cur - save_buffer), save_buffer - 4096)) {
-        M_StartMessage("There was not enough space to save the game.\nWould you like to clear this slot and\n try saving again in a different slot?\n\npress y or n.",save_game_clear,true);
+    // The flash slot writer used to own this pause; the SD card needs it for the
+    // same reason, minus the XIP hazard: it parks core 1 on the "saving" frame
+    // and fades the sound so the card I/O is not heard as a stutter.
+    // The write goes ahead either way: a lost handshake with core 1 costs the
+    // "saving" frame and a bit of audio, not the save. Only unwind the pause if
+    // it was actually taken.
+    const boolean paused = pd_start_save_pause();
+    int sd_result = doom_sd_write_file(P_SaveGameFile(savegameslot), save_buffer,
+                                       (uint32_t)(bo.cur - save_buffer));
+    if (paused) {
+        pd_end_save_pause();
+    }
+    if (sd_result != 0) {
+        // M_StartMessage keeps the pointer rather than copying, so the text has
+        // to outlive this frame.
+        static char save_failed_message[160];
+        M_snprintf(save_failed_message, sizeof(save_failed_message),
+                   "The game could not be saved:\n%s.\nWould you like to clear this slot and\n"
+                   " try saving again in a different slot?\n\npress y or n.",
+                   doom_sd_strerror(sd_result));
+        M_StartMessage(save_failed_message, save_game_clear, true);
         resume = false;
     }
 #endif

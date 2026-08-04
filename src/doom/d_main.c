@@ -77,6 +77,11 @@
 #if PICO_DOOM
 #include "picodoom.h"
 #endif
+#if PICO_ON_DEVICE
+#include "doom_settings.h"
+#include "doom_leds.h"
+#include "doom_wiipad.h"
+#endif
 
 #include "d_main.h"
 #if PICO_BUILD
@@ -575,6 +580,14 @@ void D_DoomLoop (void)
     do {
         tuh_task();
     } while (!time_reached(end_time));
+#endif
+#if PICO_ON_DEVICE
+    // Last PIO consumer, on purpose: I_InitSound() has claimed I2S on pio1 and
+    // tuh_init() above has claimed Pico-PIO-USB on pio0, so if the VU meter
+    // cannot find a free state machine here it really is because there is
+    // none. Also needs the final clk_sys from i_main.c — ws2812_program_init
+    // samples it once to compute the bit clock divider.
+    doom_leds_init();
 #endif
     EnableLoadingDisk();
 
@@ -1574,6 +1587,15 @@ void D_DoomMain (void)
     D_BindVariables();
     M_LoadDefaults();
 
+#if PICO_ON_DEVICE
+    // On device there is no default.cfg: the settings that can be changed live
+    // on the SD card instead (doom_settings.c). This has to happen here, ahead
+    // of M_Init (which derives the screen size), R_Init and S_Init (which take
+    // the volumes). No I_AtExit counterpart — the handlers registered there are
+    // never actually run on device, so I_Quit() flushes explicitly.
+    doom_settings_load();
+#endif
+
 #if !NO_USE_SAVE_CONFIG
     // Save configuration at exit.
     I_AtExit(M_SaveDefaults, false);
@@ -1891,6 +1913,12 @@ void D_DoomMain (void)
     DEH_printf("I_Init: Setting up machine state.\n");
     I_CheckIsScreensaver();
     I_InitTimer();
+#if PICO_ON_DEVICE
+    // Before I_InitSound() on purpose: on the TLV320 boards the codec shares
+    // SDA/SCL with the Wii extension port, and an uninitialized pad on that
+    // bus makes every DAC register access time out. See doom_wiipad.cpp.
+    doom_wiipad_init();
+#endif
     I_InitSound(true);
     I_InitMusic();
 

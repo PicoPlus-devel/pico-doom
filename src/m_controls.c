@@ -190,11 +190,30 @@ int joybstraferight = -1;
 
 int joybjump = -1;
 
-int joybprevweapon = 4; // select
-int joybnextweapon = 5; // start
+int joybprevweapon = 4; // select or left shoulder
+int joybnextweapon = 5; // right shoulder
 
-int joybmenu = -1;
+int joybmenu = 6; // start
 int joybautomap = -1;
+
+// Which layout pollGamePads() (i_usbhid.cpp) builds the button mask from:
+// 0 = the six-button SNES layout above, 1 = the four-button NES layout, where
+// A/B/Select/Start have to cover fire, strafe, use, weapons and the menu
+// between them. Persisted in /settings_DOOM.dat. Plain int8_t rather than
+// isb_int8_t so the C and C++ declarations of it cannot disagree.
+int8_t nes_pad_scheme = 0;
+
+// Kept in one place because the NES layout has no run button: the vanilla
+// "joybspeed past the end of the button array means autorun" hack (see
+// g_game.c) stands in for it, and must never get out of step with the flag.
+// 29 rather than the 31 the vanilla comment mentions, because M_Responder
+// evaluates 1 << joybspeed and 1 << 31 is undefined on a signed int. Nothing
+// sets bit 29, so the menu path stays inert either way.
+void M_SetNesPadScheme(int on)
+{
+    nes_pad_scheme = on ? 1 : 0;
+    joybspeed = nes_pad_scheme ? 29 : 2;
+}
 #endif
 
 // Control whether if a mouse button is double clicked, it acts like 

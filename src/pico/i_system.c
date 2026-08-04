@@ -19,7 +19,7 @@
 #include "pico.h"
 #include "pico/stdio.h"
 #if PICO_ON_DEVICE
-#include "hardware/watchdog.h"
+// The exit screen's DIR command reports the save-game flash slots.
 #include "doomtype.h"
 #include "doom/p_saveg.h"
 #endif
@@ -278,12 +278,39 @@ void I_BindVariables(void)
 //
 
 #include "pico/sem.h"
-#include "whddata.h"
 #include "piconet.h"
+#include "whddata.h"
+#include "doom_boot.h"
+// doom_settings.h and doom_leds.h stub themselves out off-device, so I_Quit()
+// below can call the flush and the LED blank unconditionally; doom_sdcard.h has
+// no such fallback and is only used from PICO_ON_DEVICE code.
+#include "doom_settings.h"
+#include "doom_leds.h"
+#if PICO_ON_DEVICE
+#include "doom_sdcard.h"
+#endif
 
 int8_t at_exit_screen;
 
-extern uint8_t *text_screen_data;
+#if PICO_ON_DEVICE
+// Probe how much flash the chip actually has, for the exit screen's idea of how
+// big drive A: is. Lived in p_saveg.c while the save games were flash-resident;
+// the DIR listing is the only caller left.
+const uint8_t *get_end_of_flash(void) {
+    static const uint8_t *end_of_flash;
+    if (!end_of_flash) {
+        // look for end of flash by repeated data
+        for(end_of_flash = (const uint8_t *)XIP_BASE + 2 * 1024*1024; end_of_flash < (const uint8_t *)XIP_BASE + 16 * 1024 * 1024; end_of_flash += 2 * 1024 * 1024) {
+            if (!memcmp(end_of_flash, (const uint8_t *)XIP_BASE, 512)) {
+                break;
+            }
+        }
+    }
+    return end_of_flash;
+}
+#endif
+
+// text_screen_data itself comes from i_video.h now.
 
 static int8_t entry_line = -1;
 
@@ -293,14 +320,6 @@ static void scroll_line() {
         memset(text_screen_data + entry_line * 160, 0, 160);
     } else
         entry_line++;
-}
-
-static void restart() {
-#if PICO_ON_DEVICE
-    watchdog_reboot(0, 0, 1);
-#else
-    exit(0);
-#endif
 }
 
 static void write_text_line(const char *txt) {
@@ -354,7 +373,7 @@ void handle_exit_key_down(int scancode, bool shift, uint8_t *kb_buffer, int kb_l
             foo++;
         }
         *foo++ = 0;
-        if (!strcmp((char*)cmd, "DOOM") || !strcmp((char*)cmd, "DOOM.EXE")) restart();
+        if (!strcmp((char*)cmd, "DOOM") || !strcmp((char*)cmd, "DOOM.EXE")) doom_restart_game();
         else if (!strcmp((char*)kb_buffer, "CLS")) {
             memset(text_screen_data, 0, 80 * 25 * 2);
             entry_line = 0;
@@ -398,19 +417,26 @@ void handle_exit_key_down(int scancode, bool shift, uint8_t *kb_buffer, int kb_l
             int dsg_size = 0;
 #define SHOW_SLOTS 1
 #if PICO_ON_DEVICE && SHOW_SLOTS
-            flash_slot_info_t slots[7];
-            P_SaveGameGetExistingFlashSlotAddresses(slots, 7);
+            // Save games are files on the SD card now, so they are listed for
+            // completeness but no longer count against the flash "disk".
             int filecount = 2;
-            for(int i=0;i<7;i++) {
-                if (slots[i].data) {
+            for(int i=0;i<6;i++) {
+                int32_t slot_size = doom_sd_file_size(P_SaveGameFile(i));
+                if (slot_size >= 0) {
                     sprintf(buf, "12/11/2021  04:21 PM                   %d.DSG", i);
-                    write_num(slots[i].size + 8, buf + 27, 9);
+                    write_num(slot_size, buf + 27, 9);
                     write_text_line(buf);
-                    dsg_size += slots[i].size + 8;
+                    dsg_size += slot_size;
                     filecount++;
                 }
             }
+#if WHD_LOAD_FROM_SD
+            // The WHD lives in PSRAM, not flash, so the only thing DOOM keeps
+            // in flash here is its own image.
+            int filesize = binsize;
+#else
             int filesize = whd_map_base + whdheader->size - (uint8_t *)XIP_BASE;
+#endif
             scroll_line();
             sprintf(buf, "        %d File(s)                bytes", filecount);
 #else
@@ -421,7 +447,7 @@ void handle_exit_key_down(int scancode, bool shift, uint8_t *kb_buffer, int kb_l
             write_num(binsize + whdheader->size + dsg_size, buf + 23, 9);
             write_text_line(buf);
             strcpy(buf, "        0 Dir(s)                 bytes free");
-            int remaining = disksize - filesize - dsg_size;
+            int remaining = disksize - filesize;
             if (remaining < 0) remaining = 0;
             write_num(remaining, buf + 23, 9);
             write_text_line(buf);
@@ -467,35 +493,91 @@ void handle_exit_key_down(int scancode, bool shift, uint8_t *kb_buffer, int kb_l
 }
 
 uint8_t *exit_screen_kb_buffer_80;
+
+// Under the bootloader there is no exit screen, so the only thing left to wait
+// for is the quit sound M_QuitResponse() started — vanilla follows it with
+// I_WaitVBL(105) (~1.5 s), which is compiled out under PICO_DOOM.
+#define EXIT_LINGER_MS 1500
+
+// Pump everything that still has to keep running while we are on the way out:
+// the sound mixer (so the quit sound plays) and USB HID (so the exit screen's
+// keyboard works).
+static void exit_screen_pump(void) {
+#if PICO_ON_DEVICE
+    // no idea why the default timeout of 50 ms is NOT working here, hack hack hack away!
+    I_GetEventTimeout(1000);
+#if USB_SUPPORT
+    tuh_task();
+    pico_usb_hid_poll();
+#endif
+#endif
+    I_UpdateSound();
+}
+
 void __attribute((noreturn)) I_Quit (void)
 {
     extern void D_Endoom();
 #if USE_PICO_NET
     piconet_stop();
 #endif
-    D_Endoom();
+    // pd_end_frame() stops running from here on, so without this the heartbeat
+    // freezes mid-blink and the VU meter holds its last pattern through ENDOOM
+    // and the bootloader linger. Has to happen before the reset in
+    // doom_boot.c: that clears the PIO but not the pixels' latched colours.
+    doom_leds_off();
+
+    // The only chance to persist changes made outside the menus (F11 gamma,
+    // +/- screen size, '\' FPS overlay), since I_AtExit handlers never run
+    // here. Kept ahead of the semaphore dance below because the card has to
+    // still be usable, not because the flush touches the renderer — it no
+    // longer takes the save pause (see doom_settings.c).
+    doom_settings_flush();
+
+    // Launched from the pico-bootLoader: the picker is where we are headed, so
+    // skip ENDOOM and the DOS prompt entirely (that also avoids caching the
+    // ENDOOM lump for nothing) and just let the quit sound finish.
+    bool to_loader = doom_launched_from_bootloader();
+
+    if (!to_loader) {
+        D_Endoom();
+    }
     I_StopSong();
     while (!sem_available(&display_frame_freed)) {
         I_UpdateSound();
     }
     sem_acquire_blocking(&display_frame_freed);
     next_video_type = VIDEO_TYPE_TEXT;
+    // One release is enough: new_frame_stuff() only re-latches display_video_type
+    // when render_frame_ready is available, so core1 holds this frame from here on.
     sem_release(&render_frame_ready);
-    at_exit_screen = 1;
+
+    if (to_loader) {
+        // Signed difference so the ~24.8 day wrap of I_GetTimeMS() is harmless.
+        int deadline = I_GetTimeMS() + EXIT_LINGER_MS;
+        while (deadline - I_GetTimeMS() > 0) {
+            exit_screen_pump();
+        }
+        doom_reboot_to_loader();
+    }
+
+    // Standalone: hand the screen over to the fake DOS prompt and stay there.
+    // The way out is the user typing DOOM (or pressing START on a pad), which
+    // resets and runs the game again.
     I_StartTextInput(0,0,0,0);
     uint8_t buffer[80];
     buffer[0] = 0;
     exit_screen_kb_buffer_80 = buffer; // fine as this function never returns
+    // Put the prompt up right away instead of waiting for a first keypress:
+    // nothing on screen said a key was wanted, and with only a pad attached it
+    // was not obvious that one was. A null scancode types nothing, it just
+    // initialises entry_line and draws the prompt line.
+    handle_exit_key_down(0, false, buffer, 80);
+    // Flag last, once the buffer is published and the prompt is drawn: the
+    // keyboard hook in i_input.c and the gamepad hook in i_usbhid.cpp both start
+    // acting the moment they see it.
+    at_exit_screen = 1;
     while (true) {
-#if PICO_ON_DEVICE
-        // no idea why the default timeout of 50 ms is NOT working here, hack hack hack away!
-        I_GetEventTimeout(1000);
-#if USB_SUPPORT
-        tuh_task();
-        pico_usb_hid_poll();
-#endif
-#endif
-        I_UpdateSound();
+        exit_screen_pump();
     }
 }
 

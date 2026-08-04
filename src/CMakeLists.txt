@@ -111,6 +111,7 @@ target_sources(game INTERFACE
     tables.c            tables.h
     v_diskicon.c        v_diskicon.h
     v_video.c           v_video.h
+    vpatch_builtin.c
                         v_patch.h
     w_checksum.c        w_checksum.h
     w_main.c            w_main.h
@@ -493,6 +494,9 @@ function(add_doom_tiny SUFFIX RENDER_LIB)
             include(${CMAKE_SOURCE_DIR}/cmake/BootPartition.cmake)
             frens_offset_for_bootloader(doom_tiny${SUFFIX})
         endif()
+        # Shows up in `picotool info`; the release workflow passes the tag as
+        # -DDOOM_RELEASE_VERSION (default "dev" for a local build).
+        pico_set_program_version(doom_tiny${SUFFIX} "${DOOM_RELEASE_VERSION}")
         pico_add_extra_outputs(doom_tiny${SUFFIX})
     endif()
 
@@ -641,30 +645,66 @@ else()
 endif()
 
 if (PICO_SDK)
-    # One consolidated target: doom_tiny.uf2 handles all inputs (USB keyboard,
+    # One consolidated target per configuration: doom_tiny.uf2 (flash-resident
+    # WHX) or, with -DWHD_LOAD_FROM_SD=ON, doom_tiny_full.uf2 (full WHD loaded
+    # from SD card into PSRAM at boot). Both handle all inputs (USB keyboard,
     # mouse and gamepads via the vendored pico_shared usb_hid driver). The old
     # doom_tiny_nost / doom_tiny_usb / doom_tiny_nost_usb variants are gone.
-    add_doom_tiny("" render_newhope)
+    if (WHD_LOAD_FROM_SD)
+        set(DOOM_TINY_TARGET doom_tiny_full)
+        add_doom_tiny("_full" render_newhope)
+    else()
+        set(DOOM_TINY_TARGET doom_tiny)
+        add_doom_tiny("" render_newhope)
+    endif()
     add_library(tiny_settings INTERFACE)
-    target_compile_definitions(tiny_settings INTERFACE
-            WHD_SUPER_TINY=1
-            DEMO1_ONLY=1
-            NO_USE_FINALE_CAST=1
-            NO_USE_FINALE_BUNNY=1
-    )
-    target_compile_definitions(doom_tiny PRIVATE
-            # Overridden to 0x10080000 by fruitjam_cflags.h (and to 0x10400000
-            # for BUILD_FOR_BOOTLOADER); this default only matters for builds
-            # that don't -include that header.
+    if (WHD_LOAD_FROM_SD)
+        # Full-game WHD (whd_gen -no-super-tiny): registered doom.wad with all
+        # three episodes. NO_USE_FINALE_BUNNY stays off so E3's bunny scroller
+        # works; the finale cast is Doom II-only, keep it compiled out.
+        target_compile_definitions(tiny_settings INTERFACE
+                WHD_SUPER_TINY=0
+                DEMO1_ONLY=0
+                NO_USE_FINALE_CAST=1
+        )
+    else()
+        target_compile_definitions(tiny_settings INTERFACE
+                WHD_SUPER_TINY=1
+                DEMO1_ONLY=1
+                NO_USE_FINALE_CAST=1
+                NO_USE_FINALE_BUNNY=1
+        )
+    endif()
+    target_compile_definitions(${DOOM_TINY_TARGET} PRIVATE
+            # Overridden to 0x10080000 by fruitjam_cflags.h (0x10400000 for
+            # BUILD_FOR_BOOTLOADER, 0x11000000 = PSRAM for WHD_LOAD_FROM_SD);
+            # this default only matters for builds that don't -include that
+            # header.
             TINY_WAD_ADDR=0x10048000
     )
-    target_link_libraries(doom_tiny PRIVATE tiny_settings)
+    target_link_libraries(${DOOM_TINY_TARGET} PRIVATE tiny_settings)
     if (PICO_ON_DEVICE)
-        suppress_tinyusb_warnings()
-        target_link_libraries(doom_tiny PRIVATE pico_cd)
-        target_compile_definitions(doom_tiny PRIVATE
+        # The SDK's suppress_tinyusb_warnings() (src/rp2_common/tinyusb/
+        # CMakeLists.txt) is a wrapper that chains to the shadowed original via
+        # _suppress_tinyusb_warnings(). tinyusb defined that original in
+        # hw/bsp/rp2040/family.cmake up to 0.18.0 and dropped it afterwards, so
+        # with a lib/tinyusb newer than the one SDK 2.2.0 pins the chain breaks
+        # with "Unknown CMake command _suppress_tinyusb_warnings". Calling it is
+        # purely cosmetic (it silences warnings inside tinyusb's own sources and
+        # we do not build with -Werror), so skip it when the original is absent.
+        if (COMMAND _suppress_tinyusb_warnings)
+            suppress_tinyusb_warnings()
+        endif()
+        target_link_libraries(${DOOM_TINY_TARGET} PRIVATE pico_cd)
+        target_compile_definitions(${DOOM_TINY_TARGET} PRIVATE
                 USB_SUPPORT=1
         )
+        if (WHD_LOAD_FROM_SD)
+            # pico_fatfs comes in via common_pico (save games and settings need
+            # it on every board); PSRAM is specific to this variant.
+            target_sources(${DOOM_TINY_TARGET} PRIVATE pico/whd_sdload.c)
+            target_link_libraries(${DOOM_TINY_TARGET} PRIVATE pico_psram)
+        endif()
     endif()
 endif()
 

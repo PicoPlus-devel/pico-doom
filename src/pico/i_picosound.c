@@ -44,6 +44,7 @@
 #include "tlv320dac3100.h"             // enum headphone_toggle_t
 #include "pico_hdmi_glue.h"            // hstx_push_audio_sample, doom_audio_sink, doom_poll_headphone
 #include "hstx_data_island_queue.h"    // hstx_di_queue_get_level
+#include "doom_leds.h"                 // doom_vu_add_chunk (stubs out without a strip)
 
 // Compile-time defs from 3rdparty/pico_shared_drivers/drivers/pico_hdmi/CMakeLists.txt.
 // Fall back to upstream defaults if this file is compiled without them.
@@ -481,6 +482,15 @@ static void I_Pico_UpdateSound(void)
             }
         }
     }
+
+    // VU meter tap: one pass over the left channel of the chunk we are about
+    // to hand to the sinks. After the fade so the meter shows what is actually
+    // heard, and before the fan-out so it is written once instead of once per
+    // DOOM_AUDIO_EXCLUSIVE_SINK branch. Runs on whichever core is mixing —
+    // doom_leds.c explains why the hand-off needs no lock. The early returns
+    // above skip it, which is correct: no mix, no level, and the meter decays
+    // to dark.
+    doom_vu_add_chunk((const int16_t *)buffer->buffer->bytes, buffer->sample_count);
 
     // Fan out per-sample to the currently-selected sink. Both the HDMI DI
     // queue and the I2S ring accept int16 stereo; pack (L << 16) | R for

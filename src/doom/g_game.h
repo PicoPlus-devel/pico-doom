@@ -80,8 +80,5 @@ int G_VanillaVersionCode(void);
 extern isb_int8_t vanilla_savegame_limit;
 extern isb_int8_t vanilla_demo_limit;
 
-#if PICO_ON_DEVICE
-extern uint8_t g_load_slot;
-#endif
 #endif
 

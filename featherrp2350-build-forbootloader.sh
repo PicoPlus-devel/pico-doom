@@ -2,21 +2,25 @@
 # HW_CONFIG 14 (Adafruit Feather RP2350 + TLV320) built for the pico-bootLoader.
 # The Feather's 8 MB flash fits the bootloader map: WHX at 0x10400000 + 1.8 MB
 # ends well below the 8 MB boundary.
+cd "$(dirname "$0")" || exit 1
 TAG=featherrp2350
+# USB host runs on PIO: PICO_PIO_USB_PATH is required (matches HAS_USBPIO).
+NEED_PIO_USB=1
+. ./pico-env.sh
 BUILD=build_bl_${TAG}
 export CFLAGS="-include $(pwd)/${TAG}_cflags.h -g3 -ggdb"
 export CXXFLAGS="-include $(pwd)/${TAG}_cflags.h -g3 -ggdb"
 cmake -S . -B $BUILD \
     -DCMAKE_BUILD_TYPE=MinSizeRel \
-    -DPICO_SDK_PATH=3rdparty/pico-sdk \
-    -DPICO_EXTRAS_PATH=3rdparty/pico-extras \
+    -DPICO_SDK_PATH="$PICO_SDK_PATH" \
+    -DPICO_EXTRAS_PATH="$PICO_EXTRAS_PATH" \
     -DPICOTOOL_FETCH_FROM_GIT_PATH="$(pwd)/picotool" \
     -DPICO_BOARD=adafruit_feather_rp2350 \
     -DUSE_HSTX=1 \
     -DBUILD_FOR_BOOTLOADER=ON \
-    ${CMAKE_ARGS} "$@"
+    ${CMAKE_ARGS} "$@" || exit 1
 
-make -C $BUILD -j$(nproc)
+make -C $BUILD -j$(nproc) || exit 1
 
 PICOTOOL=./picotool/picotool-build/picotool
 if [ ! -x "$PICOTOOL" ]; then

@@ -61,6 +61,11 @@
 
 #include "m_menu.h"
 
+#if PICO_ON_DEVICE
+#include "doom_sdcard.h"
+#include "doom_settings.h"
+#endif
+
 #if PICO_DOOM && USE_PICO_NET
 #include "piconet.h"
 #include "net_client.h"
@@ -223,6 +228,9 @@ static void M_ReadThis2(int choice);
 static void M_QuitDOOM(int choice);
 
 static void M_ChangeMessages(int choice);
+#if PICO_ON_DEVICE
+static void M_ChangeNesPad(int choice);
+#endif
 static void M_ChangeSensitivity(int choice);
 static void M_SfxVol(int choice);
 static void M_MusicVol(int choice);
@@ -391,6 +399,9 @@ enum
 #endif
     endgame,
     messages,
+#if PICO_ON_DEVICE
+    nespad,
+#endif
 #if !DOOM_TINY
     detail,
     scrnsize,
@@ -411,6 +422,12 @@ static const menuitem_t OptionsMenu[]=
 #endif
     {1,VPATCH_NAME(M_ENDGAM),'e',	M_EndGame},
     {1,VPATCH_NAME(M_MESSG),	'm',M_ChangeMessages},
+#if PICO_ON_DEVICE
+    // Drawn by M_DrawOptions, not from here: menuitem_t.name is vpatchname_t,
+    // which is a uint8_t under USE_WHD, and the built-in handles start past
+    // NUM_VPATCHES (384) so they truncate. An invalid name draws nothing.
+    {1,VPATCH_NAME_INVALID,	'p',M_ChangeNesPad},
+#endif
 #if !DOOM_TINY
     {1,VPATCH_NAME(M_DETAIL),'g',	M_ChangeDetail},
     {2,VPATCH_NAME(M_SCRNSZ),'s',	M_SizeDisplay},
@@ -659,11 +676,13 @@ void M_ReadSaveStrings(void)
         LoadMenu[i].status = retval == SAVESTRINGSIZE;
     }
 #elif PICO_ON_DEVICE
-    flash_slot_info_t slots[load_end];
-    P_SaveGameGetExistingFlashSlotAddresses(slots, count_of(slots));
+    // The description is the first SAVESTRINGSIZE bytes of the file, so only
+    // one sector per slot has to come off the card. A missing file — or no card
+    // at all — leaves the slot empty and unselectable, which is exactly the
+    // right behaviour for both.
     for (int i = 0;i < load_end;i++) {
-        if (slots[i].data) {
-            M_StringCopy(savegamestrings[i], (const char *)slots[i].data, SAVESTRINGSIZE);
+        if (doom_sd_peek_file(P_SaveGameFile(i), savegamestrings[i], SAVESTRINGSIZE)) {
+            savegamestrings[i][SAVESTRINGSIZE - 1] = '\0';
             LoadMenu[i].status = 1;
         } else {
             M_StringCopy(savegamestrings[i], EMPTYSTRING, SAVESTRINGSIZE);
@@ -732,20 +751,14 @@ void M_DrawSaveLoadBorder(int x,int y, int l)
 #if !NO_USE_LOAD
 
 
-#if PICO_ON_DEVICE
-uint8_t g_load_slot;
-#endif
 //
 // User wants to load this game
 //
 void M_LoadSelect(int choice)
 {
     char    name[256];
-	
+
     M_StringCopy(name, P_SaveGameFile(choice), sizeof(name));
-#if PICO_ON_DEVICE
-    g_load_slot = choice;
-#endif
     G_LoadGame (name);
     M_ClearMenus ();
 }
@@ -1213,6 +1226,16 @@ void M_DrawOptions(void)
     V_DrawPatchDirect(OptionsDef.x + 120, OptionsDef.y + LINEHEIGHT * messages,
                       VPATCH_HANDLE(msgNames[showMessages]));
 
+#if PICO_ON_DEVICE
+    // The label itself, because the item cannot carry an 8-bit name (see the
+    // OptionsMenu entry). V_DrawPatchDirect takes a vpatch_handle_large_t, and
+    // the display list holds 9 bits, so a built-in handle survives this path.
+    V_DrawPatchDirect(OptionsDef.x, OptionsDef.y + LINEHEIGHT * nespad,
+                      VPATCH_HANDLE(VPATCH_NAME(M_NESPAD)));
+    V_DrawPatchDirect(OptionsDef.x + 120, OptionsDef.y + LINEHEIGHT * nespad,
+                      VPATCH_HANDLE(msgNames[nes_pad_scheme]));
+#endif
+
 #if !NO_USE_MOUSE
     M_DrawThermo(OptionsDef.x, OptionsDef.y + LINEHEIGHT * (mousesens + 1),
 		 10, mouseSensitivity);
@@ -1403,6 +1426,23 @@ void M_ChangeMessages(int choice)
 
     message_dontfuckwithme = true;
 }
+
+#if PICO_ON_DEVICE
+//
+//      Toggle the four-button NES pad layout on/off
+//
+void M_ChangeNesPad(int choice)
+{
+    // warning: unused parameter `int choice'
+    choice = 0;
+    M_SetNesPadScheme(!nes_pad_scheme);
+
+    players[consoleplayer].message = nes_pad_scheme
+            ? "NES PAD LAYOUT ON: SELECT+START FOR MENU"
+            : "NES PAD LAYOUT OFF";
+    message_dontfuckwithme = true;
+}
+#endif
 
 
 //
@@ -1863,7 +1903,12 @@ boolean M_Responder (event_t* ev)
 #define JOY_BUTTON_MAPPED(x) ((x) >= 0)
 #define JOY_BUTTON_PRESSED(x) (JOY_BUTTON_MAPPED(x) && (ev->data1 & (1 << (x))) != 0)
 
-            if (JOY_BUTTON_PRESSED(joybfire))
+            // In menus, accept the two "secondary" face buttons as select/back
+            // as well: on a gamepad the natural confirm button is A (bound to
+            // strafe in game) and the natural cancel is B (run), and only fire
+            // and use were consulted here, which made menus look dead to
+            // anyone not reaching for X/Y.
+            if (JOY_BUTTON_PRESSED(joybfire) || JOY_BUTTON_PRESSED(joybstrafe))
             {
                 // Simulate a 'Y' keypress when Doom show a Y/N dialog with Fire button.
                 if (messageToPrint && messageNeedsInput)
@@ -1888,7 +1933,7 @@ boolean M_Responder (event_t* ev)
                 }
                 joywait = I_GetTime() + 5;
             }
-            if (JOY_BUTTON_PRESSED(joybuse))
+            if (JOY_BUTTON_PRESSED(joybuse) || JOY_BUTTON_PRESSED(joybspeed))
             {
                 // Simulate a 'N' keypress when Doom show a Y/N dialog with Use button.
                 if (messageToPrint && messageNeedsInput)
@@ -2508,6 +2553,13 @@ void M_ClearMenus (void)
     menuactive = 0;
     // if (!netgame && usergame && paused)
     //       sendpause = true;
+#if PICO_ON_DEVICE
+    // Every route out of the menus comes through here, so this is the one place
+    // that has to know a volume or a toggle may just have been changed. It is a
+    // no-op unless something really did change, so the callers that are not the
+    // user pressing escape (starting a game, the finale) cost nothing.
+    doom_settings_flush();
+#endif
 }
 
 
