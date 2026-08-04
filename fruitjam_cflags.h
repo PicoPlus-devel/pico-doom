@@ -31,6 +31,10 @@
 // from audio_i2s.h: 1 = TLV320, 2 = PCM5000A). Consumed by i_picosound.c.
 #define DOOM_AUDIO_I2S_DRIVER 1
 // I2C bus for the TLV320DAC3100 codec (macros consumed by tlv320dac3100.c).
+// The very same bus and pins are the Wii extension port on the STEMMA QT
+// connector, read by src/pico/doom_wiipad.cpp — which is why the pad has to be
+// brought up before the codec, see doom_wiipad_init(). -1 would disable it,
+// as with the NES pins below.
 #define WIIPAD_I2C i2c0
 #define WII_PIN_SDA 20
 #define WII_PIN_SCL 21

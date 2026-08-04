@@ -369,8 +369,11 @@ supported. Each has its own pin header (`<tag>_cflags.h`) and script pair —
 | Tag | HW_CONFIG | Board | USB host | Audio | Legacy pads |
 |-----|-----------|-------|----------|-------|-------------|
 | `adafruitdvisd` | 2 | Pico 2 + Adafruit DVI Breakout + SD breakout (breadboard or PCB) | native USB (OTG adapter) | HDMI + optional PCM5100A on GPIO 26/27 | 2× NES/SNES |
-| `murmulatorm2` | 13 | Murmulator M2 (Pico 2 module) | native USB (OTG adapter) | HDMI + PCM5100A | 2× NES/SNES |
-| `featherrp2350` | 14 | Adafruit Feather RP2350 + TLV320DAC3100 breakout | PIO-USB on GPIO 24/25 (USB Host FeatherWing) | HDMI + TLV320 | — |
+| `murmulatorm2` | 13 | Murmulator M2 (Pico 2 module) | native USB (OTG adapter) | HDMI + PCM5100A | 2× NES/SNES, Wii (GPIO 0/1) |
+| `featherrp2350` | 14 | Adafruit Feather RP2350 + TLV320DAC3100 breakout | PIO-USB on GPIO 24/25 (USB Host FeatherWing) | HDMI + TLV320 | Wii (STEMMA QT, GPIO 2/3) |
+
+The Fruit Jam itself has no NES/SNES ports, but does have a Wii extension port
+on its STEMMA QT connector (GPIO 20/21).
 
 Notes:
 
@@ -384,6 +387,12 @@ Notes:
   ports through the vendored pico_shared `nespad` PIO driver; SNES pads are
   auto-detected. They use the same layout as the USB pads (see
   [Gamepad](#gamepad) below), including the optional NES pad layout.
+* **Wii extension port** — configs 8, 13 and 14 additionally read a Wii
+  extension connector over I2C through the vendored pico_shared `wiipad`
+  driver (see [Wii pads](#wii-pads) below). On the Fruit Jam and Feather that
+  bus is shared with the TLV320 codec, so the pad is brought up first, before
+  the codec — an uninitialized pad on the bus would otherwise make every DAC
+  register access time out.
 * **Flash size for bootloader builds** — the bootloader map is sized per board.
   Fruit Jam (16 MB) and Feather (8 MB) place the WHX at `0x10400000`. The two
   Pico 2 boards (`adafruitdvisd`, `murmulatorm2`) cap the map to the 4 MB chip:
@@ -408,7 +417,9 @@ Pin assignments live in [fruitjam_cflags.h](fruitjam_cflags.h).
   codec (speaker and headphone), plus HDMI data-island audio at 48 kHz. The
   headphone jack is auto-detected by the driver.
 * **Input** — USB host (keyboard, mouse, gamepad). Hot-plug is not reliable:
-  plug your devices in first, then reset.
+  plug your devices in first, then reset. Also a Wii extension pad on the
+  STEMMA QT connector (GPIO 20/21, shared with the codec's I2C bus) — that one
+  *is* hot-pluggable, see [Wii pads](#wii-pads).
 * **Debug** — UART on GPIO 44 (TX) / 45 (RX), 115200 baud.
 * **Clocking** — the RP2350 is overclocked to **378 MHz at 1.60 V**. The
   extra CPU headroom fixes the in-game audio slowdown.
@@ -456,6 +467,8 @@ Supported controllers:
 * Sony DualShock 4, DualSense, PlayStation Classic.
 * Xbox 360 / One / Series (XInput), and 8BitDo pads in XInput mode.
 * Sega Genesis / Mega Drive Mini, Retro-bit MD Arcade Pad.
+* Wii extension pads over I2C: NES Classic Mini, SNES Classic Mini, Wii Classic
+  Controller (Pro) — see [Wii pads](#wii-pads).
 
 Buttons use **SNES naming**. On PlayStation pads: triangle = X, square = Y. On
 Xbox pads: Y = X, X = Y.
@@ -502,6 +515,41 @@ default layout **Start** opens the menu, the D-pad moves and **A** selects.
 
 It suits the NES-shelled MantaPad and an original NES controller; a SNES pad
 keeps working, with **B**/**A** as NES A and **Y**/**X** as NES B.
+
+#### Wii pads
+
+Boards with a Wii extension connector (Fruit Jam and Feather on their STEMMA QT
+port, Murmulator M2 on GPIO 0/1 — see [Other supported boards](#other-supported-boards)) also take
+a **NES Classic Mini**, **SNES Classic Mini** or **Wii Classic Controller
+(Pro)** pad, on an adapter such as the
+[Adafruit Wii Nunchuck Adapter #4836](https://www.adafruit.com/product/4836).
+It merges into the same joystick event as everything else, so it works
+alongside a USB pad and the legacy ports, and it obeys the NES pad layout
+setting above.
+
+A **NES Classic Mini behaves exactly like an original NES controller**: A fires,
+B runs, Start opens the menu, Select cycles weapons. On a pad with the full set
+of buttons:
+
+| Control | Action |
+|---------|--------|
+| D-pad | Move and turn |
+| **A** | Fire |
+| **B** | Run |
+| **X** | Hold to turn D-pad rotation into strafing |
+| **Y** | Open / activate |
+| **L** / **Select** | Previous weapon |
+| **R** | Next weapon |
+| **Start** | Open / close the menu |
+
+Note that this is *not* the same face-button arrangement a real SNES pad gets on
+the legacy ports (there **B** fires and **Y** runs). The two Classic Mini pads
+share the Wii Classic Controller Pro protocol and identity block, so there is no
+way to tell a NES Classic from a SNES Classic on the wire — only one of them can
+match its legacy-port equivalent, and matching the NES pad was chosen.
+
+The pad is polled at ~100 Hz and is hot-pluggable: plug one in at any time and it
+is picked up within a second (unlike USB, see Known issues).
 
 ## Known issues
 

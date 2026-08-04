@@ -80,6 +80,7 @@
 #if PICO_ON_DEVICE
 #include "doom_settings.h"
 #include "doom_leds.h"
+#include "doom_wiipad.h"
 #endif
 
 #include "d_main.h"
@@ -1912,6 +1913,12 @@ void D_DoomMain (void)
     DEH_printf("I_Init: Setting up machine state.\n");
     I_CheckIsScreensaver();
     I_InitTimer();
+#if PICO_ON_DEVICE
+    // Before I_InitSound() on purpose: on the TLV320 boards the codec shares
+    // SDA/SCL with the Wii extension port, and an uninitialized pad on that
+    // bus makes every DAC register access time out. See doom_wiipad.cpp.
+    doom_wiipad_init();
+#endif
     I_InitSound(true);
     I_InitMusic();
 

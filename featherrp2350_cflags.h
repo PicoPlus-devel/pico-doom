@@ -35,6 +35,9 @@
 #define PICO_AUDIO_I2S_INTERRUPT_PIN -1
 #define PICO_AUDIO_I2S_INTERRUPT_IS_BUTTON 0
 // I2C bus for the TLV320DAC3100 codec (macros consumed by tlv320dac3100.c).
+// Also the Wii extension port (STEMMA QT), read by src/pico/doom_wiipad.cpp —
+// the pad shares these pins with the codec and so must be brought up first,
+// see doom_wiipad_init(). -1 would disable it, as with the NES pins below.
 // Note: i2c1 is also piconet's i2c_default — harmless, piconet's I2C IRQ
 // never enables on HSTX builds (its pins are taken over by the HSTX lanes).
 #define WIIPAD_I2C i2c1

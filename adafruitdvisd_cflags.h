@@ -38,9 +38,10 @@
 // PCM510x has no volume register and benefits from the DC blocker in
 // audio_i2s.c (see the I2S_AUDIO_COMPENSATE_DC_OFFSET note in audio_i2s.h).
 #define I2S_AUDIO_COMPENSATE_DC_OFFSET 1
-// No TLV320 codec on this board. The pins are unused (-1 is fine, the codec
-// init never runs for driver 2), but WIIPAD_I2C must stay a valid i2c
-// instance: tlv320dac3100.c uses it as an i2c_inst_t* in always-compiled code.
+// No TLV320 codec and no Wii extension port on this board. The pins are unused
+// (-1 is fine: the codec init never runs for driver 2, and doom_wiipad.cpp
+// compiles away), but WIIPAD_I2C must stay a valid i2c instance:
+// tlv320dac3100.c uses it as an i2c_inst_t* in always-compiled code.
 #define WIIPAD_I2C i2c1
 #define WII_PIN_SDA -1
 #define WII_PIN_SCL -1

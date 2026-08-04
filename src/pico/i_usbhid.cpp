@@ -48,6 +48,17 @@
 #define DOOM_NESPAD_1 0
 #endif
 
+// Wii-extension pads on I2C (NES/SNES Classic Mini, Wii Classic Controller
+// (Pro)), through the doom_wiipad.cpp glue. Same -1-disables convention on the
+// pin macros, and the same merge into the joystick event below.
+#if defined(WII_PIN_SDA) && WII_PIN_SDA >= 0 && \
+    defined(WII_PIN_SCL) && WII_PIN_SCL >= 0
+#define DOOM_WIIPAD 1
+#include "doom_wiipad.h"
+#else
+#define DOOM_WIIPAD 0
+#endif
+
 extern "C" {
 void pico_usb_key_down(int scancode, int shift);
 void pico_usb_key_up(int scancode, int shift);
@@ -331,20 +342,37 @@ namespace
             else if (gp.buttons & Button::DOWN) ymove = 127;
         }
 
+#if DOOM_NESPAD || DOOM_WIIPAD
+        // One merged word for every "vintage" pad, in nespad's SNES serial
+        // order: bit0=B, 1=Y, 2=Select, 3=Start, 4=Up, 5=Down, 6=Left,
+        // 7=Right, 8=A, 9=X, 10=L, 11=R. Plain NES pads only populate bits
+        // 0-7 (as A,B,Select,Start,dpad), so a NES pad gets A=fire / B=run.
+        // Mapping mirrors the USB block above: primary=fire, secondary=run,
+        // SNES A/X=strafe/use. A plain NES pad has no shoulders, so it trades
+        // next-weapon for menu access on Start; Select still cycles weapons
+        // the other way, which reaches all of them.
+        //
+        // wiipad_read() is OR-ed in unchanged, which is the whole point: its
+        // low byte is *already* the NES pad layout (bit0=A, 1=B, 2=Select,
+        // 3=Start, dpad), so a NES Classic Mini behaves exactly like an
+        // original NES controller on a nespad port. The price is that its
+        // bits 8-11 are X, Y, L, R where nespad has A, X, L, R, so an SNES
+        // Classic Mini gets A=fire, B=run, X=strafe, Y=use rather than a real
+        // SNES pad's B=fire, Y=run, A=strafe, X=use. The two Classic pads
+        // cannot be told apart on the wire - they share the Wii Classic
+        // Controller Pro protocol and identity block - so only one of them
+        // can match its nespad equivalent, and the NES pad wins.
+        uint16_t nes = 0;
 #if DOOM_NESPAD
-        // nespad_states_ext is in SNES serial order: bit0=B, 1=Y, 2=Select,
-        // 3=Start, 4=Up, 5=Down, 6=Left, 7=Right, 8=A, 9=X, 10=L, 11=R.
-        // Plain NES pads only populate bits 0-7 (as A,B,Select,Start,dpad),
-        // so a NES pad gets A=fire / B=run. Mapping mirrors the USB block
-        // above: primary=fire, secondary=run, SNES A/X=strafe/use.
-        // A plain NES pad has no shoulders, so it trades next-weapon for menu
-        // access on Start; Select still cycles weapons the other way, which
-        // reaches all of them.
-        const uint16_t nes = nesButtons();
-        if (nes & 0x0001) legacy |= 1 << 0;      // SNES B / NES A -> fire
-        if (nes & 0x0100) legacy |= 1 << 1;      // SNES A         -> strafe
-        if (nes & 0x0002) legacy |= 1 << 2;      // SNES Y / NES B -> speed/run
-        if (nes & 0x0200) legacy |= 1 << 3;      // SNES X         -> use
+        nes |= nesButtons();
+#endif
+#if DOOM_WIIPAD
+        nes |= doom_wiipad_read();
+#endif
+        if (nes & 0x0001) legacy |= 1 << 0;      // SNES B / NES A / wii A -> fire
+        if (nes & 0x0100) legacy |= 1 << 1;      // SNES A / wii X -> strafe
+        if (nes & 0x0002) legacy |= 1 << 2;      // SNES Y / NES B / wii B -> run
+        if (nes & 0x0200) legacy |= 1 << 3;      // SNES X / wii Y -> use
         if (nes & 0x0404) legacy |= 1 << 4;      // Select / SNES L-> prev weapon
         if (nes & 0x0800) legacy |= 1 << 5;      // SNES R         -> next weapon
         if (nes & 0x0008) legacy |= 1 << JOYB_MENU_BIT; // Start   -> menu

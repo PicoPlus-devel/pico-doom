@@ -43,12 +43,16 @@
 // PCM510x has no volume register and benefits from the DC blocker in
 // audio_i2s.c (see the I2S_AUDIO_COMPENSATE_DC_OFFSET note in audio_i2s.h).
 #define I2S_AUDIO_COMPENSATE_DC_OFFSET 1
-// No TLV320 codec on this board. The pins are unused (-1 is fine, the codec
-// init never runs for driver 2), but WIIPAD_I2C must stay a valid i2c
-// instance: tlv320dac3100.c uses it as an i2c_inst_t* in always-compiled code.
+// Wii extension port (NES/SNES Classic Mini, Wii Classic Controller (Pro)),
+// read over I2C by src/pico/doom_wiipad.cpp. The M2's connector is on GPIO
+// 0/1 = i2c0 SDA/SCL — the same pins the UART would want, which is exactly
+// why NO_USE_UART is set above. Matches BoardConfigs.cmake HW_CONFIG 13.
+// No TLV320 codec on this board, so the pad has the bus to itself; WIIPAD_I2C
+// must still be a valid i2c instance because tlv320dac3100.c uses it as an
+// i2c_inst_t* in always-compiled code.
 #define WIIPAD_I2C i2c0
-#define WII_PIN_SDA -1
-#define WII_PIN_SCL -1
+#define WII_PIN_SDA 0
+#define WII_PIN_SCL 1
 // Pin the pico_hdmi audio Data-Island ring at 0x20076000. That address is
 // SHORTPTR_BASE + 0x40000 — the top of Doom's zone heap (see i_system.c's
 // I_ZoneBase()) — and __HeapLimit is 0x20080000, so the 36 KB ring lives in

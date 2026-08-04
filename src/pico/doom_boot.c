@@ -23,6 +23,7 @@
 #if PICO_ON_DEVICE
 #include "pico/stdio.h"
 #include "hardware/watchdog.h"
+#include "doom_wiipad.h"
 #endif
 
 #include "doom_boot.h"
@@ -70,6 +71,10 @@ void __attribute__((noreturn)) doom_reboot_to_loader(void)
     printf("\ndoom: quit -> reset%s\n",
            doom_launched_from_bootloader() ? " (returning to bootloader)" : "");
     stdio_flush();
+    // Hand the I2C bus back before the reset. pico-infonesPlus does the same
+    // before its own reboot: a Wii pad left initialized across the reset has
+    // been seen to hang the next boot.
+    doom_wiipad_shutdown();
     watchdog_hw->scratch[LOADER_RETURN_SCRATCH] = LOADER_RETURN_MAGIC;
     watchdog_reboot(0, 0, 1);
     for (;;) {
@@ -90,6 +95,7 @@ void __attribute__((noreturn)) doom_restart_game(void)
     // picker there — so there is no case where this should reach the loader.)
     printf("\ndoom: restart\n");
     stdio_flush();
+    doom_wiipad_shutdown(); // see doom_reboot_to_loader()
     watchdog_reboot(0, 0, 1);
     for (;;) {
         tight_loop_contents();
