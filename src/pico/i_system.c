@@ -281,10 +281,11 @@ void I_BindVariables(void)
 #include "piconet.h"
 #include "whddata.h"
 #include "doom_boot.h"
-// doom_settings.h stubs itself out off-device, so I_Quit() below can call the
-// flush unconditionally; doom_sdcard.h has no such fallback and is only used
-// from PICO_ON_DEVICE code.
+// doom_settings.h and doom_leds.h stub themselves out off-device, so I_Quit()
+// below can call the flush and the LED blank unconditionally; doom_sdcard.h has
+// no such fallback and is only used from PICO_ON_DEVICE code.
 #include "doom_settings.h"
+#include "doom_leds.h"
 #if PICO_ON_DEVICE
 #include "doom_sdcard.h"
 #endif
@@ -519,6 +520,12 @@ void __attribute((noreturn)) I_Quit (void)
 #if USE_PICO_NET
     piconet_stop();
 #endif
+    // pd_end_frame() stops running from here on, so without this the heartbeat
+    // freezes mid-blink and the VU meter holds its last pattern through ENDOOM
+    // and the bootloader linger. Has to happen before the reset in
+    // doom_boot.c: that clears the PIO but not the pixels' latched colours.
+    doom_leds_off();
+
     // The only chance to persist changes made outside the menus (F11 gamma,
     // +/- screen size, '\' FPS overlay), since I_AtExit handlers never run
     // here. Kept ahead of the semaphore dance below because the card has to

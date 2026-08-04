@@ -79,6 +79,7 @@
 #endif
 #if PICO_ON_DEVICE
 #include "doom_settings.h"
+#include "doom_leds.h"
 #endif
 
 #include "d_main.h"
@@ -578,6 +579,14 @@ void D_DoomLoop (void)
     do {
         tuh_task();
     } while (!time_reached(end_time));
+#endif
+#if PICO_ON_DEVICE
+    // Last PIO consumer, on purpose: I_InitSound() has claimed I2S on pio1 and
+    // tuh_init() above has claimed Pico-PIO-USB on pio0, so if the VU meter
+    // cannot find a free state machine here it really is because there is
+    // none. Also needs the final clk_sys from i_main.c — ws2812_program_init
+    // samples it once to compute the bit clock divider.
+    doom_leds_init();
 #endif
     EnableLoadingDisk();
 

@@ -91,6 +91,14 @@
 #define NES_PIN_LAT_1 -1
 #define NES_PIO_1 pio1
 
+// --- Status LEDs (src/pico/doom_leds.c) -------------------------------------
+// -1 means the board does not have it, as with the NES pins above.
+// Plain onboard LED, blinked every 60 frames. = PICO_DEFAULT_LED_PIN.
+#define DOOM_LED_PIN 7
+// The Feather does have a NeoPixel on GPIO 21, but it is a single pixel and
+// the VU meter is a 5-pixel bargraph, so it stays off here.
+#define DOOM_VU_WS2812_PIN -1
+
 // Move the WAD base address way up since we have plenty of flash.
 // Standalone build: 0x10080000 (image at 0x10000000, WHX right after the
 // 512 KB slot).

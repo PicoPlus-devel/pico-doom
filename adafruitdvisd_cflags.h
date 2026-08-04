@@ -91,6 +91,13 @@
 #define NES_PIN_LAT_1 11
 #define NES_PIO_1 pio1
 
+// --- Status LEDs (src/pico/doom_leds.c) -------------------------------------
+// -1 means the board does not have it, as with the NES pins above.
+// Plain onboard LED, blinked every 60 frames. = PICO_DEFAULT_LED_PIN.
+#define DOOM_LED_PIN 25
+// No NeoPixels on a Pico 2 / Pico Plus 2, so no VU meter.
+#define DOOM_VU_WS2812_PIN -1
+
 // Move the WAD base address up so it lives past the bootloader app slot.
 // Standalone build: 0x10080000 (image at 0x10000000, WHX right after the
 // 512 KB slot — fits a genuine 4 MB Pico 2).

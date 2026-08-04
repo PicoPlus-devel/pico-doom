@@ -16,10 +16,17 @@ if (PICO_ON_DEVICE)
     target_sources(common_pico INTERFACE
             ${CMAKE_CURRENT_LIST_DIR}/blit.S
             ${CMAKE_CURRENT_LIST_DIR}/doom_errscreen.c
+            ${CMAKE_CURRENT_LIST_DIR}/doom_leds.c
             ${CMAKE_CURRENT_LIST_DIR}/doom_sdcard.c
             ${CMAKE_CURRENT_LIST_DIR}/doom_settings.c
             ${CMAKE_CURRENT_LIST_DIR}/i_usbhid.cpp
             )
+    # WS2812 program for the Fruit Jam VU meter, a verbatim copy of
+    # pico_shared/ws2812.pio. Generated here rather than next to video_doom.pio
+    # below because doom_leds.c is its only consumer and is device-only; the
+    # boards without a strip set DOOM_VU_WS2812_PIN -1 and never include the
+    # generated header.
+    pico_generate_pio_header(common_pico ${CMAKE_CURRENT_LIST_DIR}/ws2812.pio)
     pico_wrap_function(common_pico malloc)
     pico_wrap_function(common_pico calloc)
     pico_wrap_function(common_pico free)
@@ -31,8 +38,10 @@ if (PICO_ON_DEVICE)
     # pads on PIO — compiled everywhere, only polled when the board's cflags
     # header defines NES_PIN_CLK != -1 (see i_usbhid.cpp). pico_fatfs: save
     # games and settings live on the SD card on every board, so the driver is
-    # no longer specific to the WHD_LOAD_FROM_SD build.
-    target_link_libraries(common_pico INTERFACE  hardware_i2c pico_shared_nespad pico_fatfs)
+    # no longer specific to the WHD_LOAD_FROM_SD build. hardware_pio: the
+    # WS2812 VU meter in doom_leds.c, which must not depend on the USE_HSTX
+    # branch below for its link.
+    target_link_libraries(common_pico INTERFACE  hardware_i2c pico_shared_nespad pico_fatfs hardware_pio)
 endif()
 target_include_directories(common_pico INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}

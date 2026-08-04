@@ -12,6 +12,7 @@
 #include "hardware/gpio.h"
 #include "pico/divider.h"
 #include "image_decoder.h"
+#include "doom_leds.h"
 #include <set>
 extern "C" {
 #include "doom/d_main.h"
@@ -2923,6 +2924,12 @@ if(USE_CORE1_FOR_FLATS || USE_CORE1_FOR_REGULAR) {
 //    ST_FpsDrawer(render_col_count);
 //    ST_FpsDrawer(cached_flat_slots);
     ST_FpsDrawer(-1);
+
+    // Onboard LED heartbeat, plus the VU meter repaint on boards with a strip.
+    // Same once-per-frame housekeeping slot as the FPS drawer above, and
+    // deliberately not in the I_UpdateSound() busy-wait at the top of this
+    // function — that spins many times per frame and on both cores.
+    doom_leds_frame((unsigned)pd_frame);
 
     // todo this might not be right
     // advance demo is set on the last frame of a demo, pre_wipe_state is set for last frame of gameplay in other state changes (by g_game)

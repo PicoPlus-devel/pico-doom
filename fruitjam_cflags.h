@@ -86,6 +86,16 @@
 #define NES_PIN_LAT_1 -1
 #define NES_PIO_1 pio1
 
+// --- Status LEDs (src/pico/doom_leds.c) -------------------------------------
+// -1 means the board does not have it, as with the NES pins above.
+// Plain onboard LED, blinked every 60 frames. = PICO_DEFAULT_LED_PIN.
+#define DOOM_LED_PIN 29
+// The 5 onboard NeoPixels, driven as an audio VU meter (ported from
+// pico-infonesPlus' vumeter.cpp, which this board also runs).
+// = PICO_DEFAULT_WS2812_PIN. Being above GPIO 31 this needs a PIO whose GPIO
+// base can be moved to 16, which only the otherwise-unused pio2 can offer.
+#define DOOM_VU_WS2812_PIN 32
+
 // Move the WAD base address way up since we have plenty of flash.
 // Standalone build: 0x10080000 (as documented in README.md, "fruit jam
 // ALWAYS uses the offset of 0x10080000").
