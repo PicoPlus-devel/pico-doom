@@ -20,7 +20,63 @@ technical story of the RP2xxx port (WAD compression, memory tricks, the
 `whd_gen` tool) see [README.RP2040.md](README.RP2040.md); for the upstream engine
 see [README-chocolate.md](README-chocolate.md).
 
+## Quick start — flash a prebuilt release
+
+**You do not have to build anything.** Every
+[release](../../releases) ships ready-to-flash `.uf2` files for all four boards,
+plus the converted shareware WAD and the `whd_gen` host tool. Grab the newest
+one and you are playing in a couple of minutes.
+
+1. **Download two files** from the [latest release](../../releases/latest) —
+   the firmware for your board, and `doom1-whx.uf2` (the shareware `DOOM1.WAD`,
+   already converted). The WAD file is the same for every board.
+
+   | Board | Firmware | WAD data |
+   |---|---|---|
+   | Adafruit Fruit Jam | `doom_tiny_fruitjam.uf2` | `doom1-whx.uf2` |
+   | Pico 2 / Pico Plus 2 + Adafruit DVI breakout | `doom_tiny_adafruitdvisd.uf2` | `doom1-whx.uf2` |
+   | Murmulator M2 (RP2350) | `doom_tiny_murmulatorm2.uf2` | `doom1-whx.uf2` |
+   | Adafruit Feather RP2350 + TLV320 breakout | `doom_tiny_featherrp2350.uf2` | `doom1-whx.uf2` |
+
+2. **Plug in your peripherals first** — HDMI display, and a USB keyboard, mouse
+   or [gamepad](#controls). USB hot-plug is not reliable, so the devices have to
+   be connected before the game starts. Optionally insert a FAT32/exFAT microSD
+   card; it is what [saved games and settings](#saved-games-and-settings) are
+   written to. The game runs fine without one.
+
+3. **Flash both files.** Hold **BOOTSEL** while plugging the board into your
+   computer's USB, so it appears as an `RPI-RP2` drive, and drag the firmware
+   `.uf2` onto it. The board reboots as soon as the copy finishes, so re-enter
+   BOOTSEL and drag `doom1-whx.uf2` across as a second step. Order does not
+   matter; both files must be flashed.
+
+4. **Reset the board.** Doom starts on the HDMI output, with sound over HDMI and
+   over the board's I2S DAC or headphone jack.
+
+Two variants of the firmware are attached to each release:
+
+* `doom_tiny_<board>.uf2` — the shareware episode, from flash. Pair it with
+  `doom1-whx.uf2`; this is what the table above describes.
+* `doom_tiny_<board>_full.uf2` — plays a **registered/Ultimate `doom.wad`** off
+  the SD card instead, so all episodes are available. Convert your own WAD with
+  the `whd_gen` binary from the same release
+  (`whd_gen doom.wad doom.whd -no-super-tiny`), copy the result to the card as
+  `/roms/doom/doom.whd`, and flash *only* this file — no `doom1-whx.uf2`
+  alongside it. Requires PSRAM on the board; see
+  [Full game from SD card](#full-game-from-sd-card-doom_tiny_full).
+
+The releases here are for flashing a board directly over USB. If you run the
+resident [pico-bootLoader](https://github.com/fhoedemakers/pico-bootLoader)
+menu, take Doom's files from *that* project's release instead — see
+[Running under the pico-bootLoader](#running-under-the-pico-bootloader).
+
+The rest of this README covers building from source, converting WADs, and the
+per-board details.
+
 ## What you need
+
+Only the hardware is needed to run a [prebuilt release](#quick-start--flash-a-prebuilt-release);
+the build host is for compiling from source.
 
 **Hardware**
 
@@ -78,7 +134,7 @@ see [README-chocolate.md](README-chocolate.md).
   Note that re-running `git -C $PICO_SDK_PATH submodule update --init` afterwards
   resets `lib/tinyusb` to the SDK's pinned 0.18.0 and undoes this.
 
-## Quick start (standalone)
+## Building from source (standalone)
 
 ```bash
 git submodule update --init      # tusb_xinput + the shared driver library
