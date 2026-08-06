@@ -202,10 +202,14 @@ void V_DrawPatchList(const vpatchlist_t *patchlist) {
         int repeat = patchlist[l].entry.repeat;
         int w = vpatch_width(patch);
         int h0 = vpatch_height(patch);
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-        int skip_top;
-#pragma GCC diagnostic pop
+        // Only assigned in the `entry.y < vpatch_clip_top` branch below, which is
+        // also the only thing that bumps `type` into the vp*_clipped cases that
+        // read it -- so every read is preceded by a write. GCC cannot see that
+        // correlation and warns -Wmaybe-uninitialized at the read sites; the 0
+        // init ("skip nothing") is dead in the unclipped path and eliminated.
+        // (A pragma around this declaration cannot suppress it: the diagnostic is
+        // reported at the use, which is why upstream's push/pop here never took.)
+        int skip_top = 0;
         int type = vpatch_type(patch);
         if (patchlist[l].entry.y + h0 > vpatch_clip_bottom) {
             // clipping bottom which is trivial

@@ -951,7 +951,9 @@ void pd_add_column2(pd_column_type type) {
                 // note as pre R_GenerateLookup, a single patch column ignores the patch offsety
                 dc_source = make_drawcolumn(lookup_patch(pnum-firstspritelump), (uint8_t)(dc_source.col - metadata[2]));
             } else {
-#warning untested no patch column
+                // TODO untested: "no patch column" (pn == 0xff) draws nothing.
+                // Was a #warning upstream; kept as a note so the build stays
+                // clean -- behaviour is unchanged.
                 return;
             }
         }
