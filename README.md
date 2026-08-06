@@ -59,6 +59,25 @@ see [README-chocolate.md](README-chocolate.md).
   `-DENABLE_PIO_USB=0`. Every build script validates these paths up front via
   [pico-env.sh](pico-env.sh) and stops with a clear message if one is wrong.
 
+* **tinyusb newer than the 0.20.0 tag**, inside that SDK. SDK 2.2.0 pins
+  **0.18.0**, and the `0.20.0` tag is *also* too old — this is a post-release
+  master requirement, not a version number you can ask for. The vendored XInput
+  host driver needs `usbh_class_driver_t.open` to return `uint16_t` (bytes of
+  descriptor consumed) rather than `bool`, which landed in tinyusb commit
+  `ef018e364` (2025-12-11, `0.20.0-103`). Anything older warns
+  `-Wincompatible-pointer-types` in `3rdparty/tusb_xinput/xinput_host.c` and
+  claims interfaces by a different rule. These builds use `7f146c9ff`
+  (`0.20.0-843`). Check and bump it in place:
+
+  ```bash
+  git -C $PICO_SDK_PATH/lib/tinyusb describe --tags     # want 0.20.0-103 or later
+  git -C $PICO_SDK_PATH/lib/tinyusb fetch origin
+  git -C $PICO_SDK_PATH/lib/tinyusb checkout 7f146c9ff  # known good
+  ```
+
+  Note that re-running `git -C $PICO_SDK_PATH submodule update --init` afterwards
+  resets `lib/tinyusb` to the SDK's pinned 0.18.0 and undoes this.
+
 ## Quick start (standalone)
 
 ```bash
