@@ -19,6 +19,7 @@
 
 #if PICODOOM_RENDER_NEWHOPE
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <limits.h>
 #include <doom/r_data.h>

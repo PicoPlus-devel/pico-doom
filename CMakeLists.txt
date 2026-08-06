@@ -99,6 +99,13 @@ if(MSVC)
 else()
     #add_compile_options("-Wall" "-Wdeclaration-after-statement" "-Wredundant-decls")
     add_compile_options("-Wall" "-Wredundant-decls")
+    # An implicit declaration means the compiler assumes int(), so a call like
+    # `p = malloc(n)` silently truncates a pointer. GCC 13 only warns; GCC 14
+    # made it an error by default, so code that builds on an older dev machine
+    # can still break the release runner (this is exactly how a missing
+    # <stdlib.h> in src/pico/i_video.c got as far as CI). Fail the same way
+    # everywhere. C only: the warning does not apply to C++.
+    add_compile_options("$<$<COMPILE_LANGUAGE:C>:-Werror=implicit-function-declaration>")
 endif()
 
 # Note PICO_SDK path is set by the SDK initialization if it occurs above
