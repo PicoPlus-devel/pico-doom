@@ -567,12 +567,25 @@ void D_DoomLoop (void)
   tuh_configure(CFG_TUH_RPI_PIO_USB, TUH_CFGID_RPI_PIO_USB_CONFIGURATION, &pio_cfg);
   printf("Init USB...\n");
   printf("USB D+/D- on GP%d and GP%d\r\n", PIN_USB_HOST_DP, PIN_USB_HOST_DM);
-  tuh_init(CFG_TUH_RPI_PIO_USB);
+  // tuh_init(rhport) is deprecated since TinyUSB 0.20 in favour of
+  // tusb_init(rhport, rh_init); same shape pico_shared uses (FrensHelpers.cpp,
+  // pio_usb_board_init/initAll). It is what tuh_init() expanded to anyway, and
+  // hcd_pio_usb.c ignores rh_init->speed, so the roothub still comes up
+  // full-speed as before.
+  const tusb_rhport_init_t host_init = {
+      .role  = TUSB_ROLE_HOST,
+      .speed = TUSB_SPEED_AUTO,
+  };
+  tusb_init(CFG_TUH_RPI_PIO_USB, &host_init);
 #else
   // Native USB controller as host (adafruitdvisd, murmulatorm2). rhport 0 is
   // the only native root port — hcd_rp2040.c asserts rhport == 0.
   printf("Init USB (native controller)...\n");
-  tuh_init(0);
+  // No-argument form (pico_shared's non-PIO branch): it expands to
+  // tusb_rhport_init(0, NULL), which brings up the host stack on
+  // TUH_OPT_RHPORT (0 here) at full speed — identical to the deprecated
+  // tuh_init(0), without the deprecation warning.
+  tusb_init();
 #endif
 
     printf("Sleeping 2s for USB devices\n"); // TinyUSB still grinds to a halt during connect/disconnect
@@ -583,7 +596,7 @@ void D_DoomLoop (void)
 #endif
 #if PICO_ON_DEVICE
     // Last PIO consumer, on purpose: I_InitSound() has claimed I2S on pio1 and
-    // tuh_init() above has claimed Pico-PIO-USB on pio0, so if the VU meter
+    // tusb_init() above has claimed Pico-PIO-USB on pio0, so if the VU meter
     // cannot find a free state machine here it really is because there is
     // none. Also needs the final clk_sys from i_main.c — ws2812_program_init
     // samples it once to compute the bit clock divider.
