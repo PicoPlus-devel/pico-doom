@@ -755,6 +755,7 @@ enum {
 // carries 9 bits, which is what the static_assert below guards.
 enum {
     VPATCH_M_NESPAD = NUM_VPATCHES,
+    VPATCH_M_BOOTSEL,
     VPATCH_BUILTIN_END,
 };
 #define VPATCH_BUILTIN_FIRST NUM_VPATCHES

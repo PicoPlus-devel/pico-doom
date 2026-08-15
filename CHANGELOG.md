@@ -4,7 +4,27 @@ Add a section per release, headed with the tag. `release-notes.sh` extracts the
 section matching the tag being released and puts it in the GitHub release body,
 so keep the heading text exactly the tag name.
 
-## v1.0
+## v0.2
+
+### Added
+
+- **Options → Bootsel Mode** — resets the board straight into the RP2350's ROM
+  bootloader, so it reappears as the `RPI-RP2` drive ready for a new `.uf2`.
+  No more unplugging the board and holding BOOTSEL down to reflash it. There is
+  no confirmation prompt, which is why it sits at the bottom of the Options
+  menu, furthest from where the cursor starts. Settings are flushed to the SD
+  card on the way out, so anything just changed in the menu survives the
+  reflash. This is a different destination from *Quit Game*, which still
+  returns to the pico-bootLoader picker, or to the DOS prompt when standalone.
+
+### Build
+
+- `tools/make_nespad_vpatch.py` is now `tools/make_menu_vpatches.py` and emits
+  every firmware-resident menu graphic rather than just the one. Labels are
+  still cut from Doom's own menu font in `DOOM.WAD`; the `B` of "Bootsel Mode"
+  is spliced together from `P` and `D`, the font having no `B` of its own.
+
+## v0.1
 
 First release of pico-doom as an independent repository (previously a fork of
 rp2040-doom / fruitjam-doom). Chocolate Doom for RP2350 boards with HSTX video.

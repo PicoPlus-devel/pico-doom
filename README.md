@@ -48,7 +48,8 @@ one and you are playing in a couple of minutes.
    computer's USB, so it appears as an `RPI-RP2` drive, and drag the firmware
    `.uf2` onto it. The board reboots as soon as the copy finishes, so re-enter
    BOOTSEL and drag `doom1-whx.uf2` across as a second step. Order does not
-   matter; both files must be flashed.
+   matter; both files must be flashed. Once the game is on there, **Options →
+   Bootsel Mode** gets you back to that drive without unplugging anything.
 
 4. **Reset the board.** Doom starts on the HDMI output, with sound over HDMI and
    over the board's I2S DAC or headphone jack.
@@ -148,7 +149,9 @@ This produces two files:
 
 Put the Fruit Jam into BOOTSEL mode and copy **both** `.uf2` files to it over
 USB. The device reboots after the first file, so you may need to re-enter the
-bootloader before copying the second one.
+bootloader before copying the second one. If a build is already running on the
+board, **Options → Bootsel Mode** puts it back into BOOTSEL from the game, which
+saves reaching for the cable on every rebuild.
 
 There is a single `doom_tiny.uf2` that supports **all** input devices (USB
 keyboard, mouse, and gamepads). The old per-input variants
@@ -204,6 +207,25 @@ BOOTSEL-flashed image correctly counts as standalone.
 The exit screen is a true 80×25 VGA text mode: 8×16 glyphs, the full CP437 set
 and the 16-colour attribute byte including blink, rendered as 640×400 centred in
 the 640×480 HDMI signal.
+
+## Bootsel mode
+
+**Options → Bootsel Mode** resets the board into the RP2350's own ROM
+bootloader, so it comes back as the `RPI-RP2` drive ready for a new `.uf2`.
+It saves unplugging the board and holding the physical BOOTSEL button every
+time you want to reflash, which adds up while developing. The equivalent item
+in [pico-infonesPlus](https://github.com/fhoedemakers/pico-infonesPlus)'
+settings menu does the same thing.
+
+This is **not** the same as *Quit Game* above: quitting is a warm watchdog
+reset that lands back in the pico-bootLoader picker (or at the DOS prompt when
+standalone), whereas this hands the chip to the ROM and leaves the game
+entirely. There is no confirmation prompt — the reset happens the moment the
+item is picked — which is why it sits at the bottom of the menu, furthest from
+where the cursor starts. Settings are flushed to the SD card on the way out, so
+anything you just changed in the Options menu survives the reflash.
+
+To get out again, either copy a `.uf2` across, or power-cycle the board.
 
 ## Full game from SD card (`doom_tiny_full`)
 
@@ -269,7 +291,8 @@ loaded as garbage.
 The settings file covers everything this build can actually change: SFX and
 music volume, messages on/off, screen size, mouse sensitivity, gamma (**F11**),
 the FPS overlay (**\\**) and the NES pad layout. Changes are written when you
-leave the menus and when you quit, so gamma or screen size changed with a hotkey
+leave the menus, when you quit, and on the way into
+[Bootsel Mode](#bootsel-mode), so gamma or screen size changed with a hotkey
 mid-game is stored the next time you open and close the menu. A missing or
 damaged file is ignored and the built-in defaults are used; a file from an older
 version is read for the settings it does have.

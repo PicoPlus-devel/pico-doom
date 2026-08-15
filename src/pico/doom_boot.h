@@ -39,6 +39,14 @@ void __attribute__((noreturn)) doom_reboot_to_loader(void);
 // the bootloader for its picker. Never returns.
 void __attribute__((noreturn)) doom_restart_game(void);
 
+// Reset into the chip's ROM bootloader, so the board comes up as the RP2350
+// UF2 drive and can be reflashed without holding BOOTSEL while replugging.
+// This is the Options menu's "Bootsel Mode" item. Note this is a different
+// destination from doom_reboot_to_loader() above, which returns to the
+// resident pico-bootLoader picker. Flushes settings and blanks the LEDs on the
+// way out, because nothing else on this path does. Never returns.
+void __attribute__((noreturn)) doom_reboot_to_bootsel(void);
+
 #ifdef __cplusplus
 }
 #endif

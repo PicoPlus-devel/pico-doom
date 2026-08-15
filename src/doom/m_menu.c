@@ -64,6 +64,7 @@
 #if PICO_ON_DEVICE
 #include "doom_sdcard.h"
 #include "doom_settings.h"
+#include "doom_boot.h"
 #endif
 
 #if PICO_DOOM && USE_PICO_NET
@@ -230,6 +231,7 @@ static void M_QuitDOOM(int choice);
 static void M_ChangeMessages(int choice);
 #if PICO_ON_DEVICE
 static void M_ChangeNesPad(int choice);
+static void M_Bootsel(int choice);
 #endif
 static void M_ChangeSensitivity(int choice);
 static void M_SfxVol(int choice);
@@ -412,6 +414,9 @@ enum
     option_empty2,
 #endif
     soundvol,
+#if PICO_ON_DEVICE
+    bootsel,
+#endif
     opt_end
 } options_e;
 
@@ -437,7 +442,13 @@ static const menuitem_t OptionsMenu[]=
     {2,VPATCH_NAME(M_MSENS),'m',	M_ChangeSensitivity},
     {-1,VPATCH_NAME_INVALID,'\0',0},
 #endif
-    {1,VPATCH_NAME(M_SVOL),'s',	M_Sound}
+    {1,VPATCH_NAME(M_SVOL),'s',	M_Sound},
+#if PICO_ON_DEVICE
+    // Label drawn by M_DrawOptions, same as the Nes Pad entry above. Last on
+    // purpose: it resets the chip the moment it is picked, with no "are you
+    // sure", so it wants to be the hardest row to land on by accident.
+    {1,VPATCH_NAME_INVALID,	'b',M_Bootsel},
+#endif
 };
 
 menu_t  OptionsDef =
@@ -1234,6 +1245,10 @@ void M_DrawOptions(void)
                       VPATCH_HANDLE(VPATCH_NAME(M_NESPAD)));
     V_DrawPatchDirect(OptionsDef.x + 120, OptionsDef.y + LINEHEIGHT * nespad,
                       VPATCH_HANDLE(msgNames[nes_pad_scheme]));
+
+    // Likewise built-in, and likewise label-only -- there is no value to show.
+    V_DrawPatchDirect(OptionsDef.x, OptionsDef.y + LINEHEIGHT * bootsel,
+                      VPATCH_HANDLE(VPATCH_NAME(M_BOOTSEL)));
 #endif
 
 #if !NO_USE_MOUSE
@@ -1441,6 +1456,20 @@ void M_ChangeNesPad(int choice)
             ? "NES PAD LAYOUT ON: SELECT+START FOR MENU"
             : "NES PAD LAYOUT OFF";
     message_dontfuckwithme = true;
+}
+
+//
+//      Reset into the ROM bootloader, so the board can be reflashed over USB
+//      without holding BOOTSEL while replugging it.
+//
+void M_Bootsel(int choice)
+{
+    // warning: unused parameter `int choice'
+    choice = 0;
+    // No confirmation, matching the same item in pico-infonesPlus. Nothing to
+    // punt to the main loop either: M_QuitResponse defers only because I_Quit()
+    // needs the display frame semaphore, and a chip reset needs nothing.
+    doom_reboot_to_bootsel(); // does not return
 }
 #endif
 

@@ -22,11 +22,16 @@
 
 #if PICO_ON_DEVICE
 #include "pico/stdio.h"
+#include "pico/bootrom.h"
 #include "hardware/watchdog.h"
 #include "doom_wiipad.h"
 #endif
 
 #include "doom_boot.h"
+// Both stub themselves out off-device, so doom_reboot_to_bootsel() can call
+// them without another #if -- the same arrangement I_Quit() uses.
+#include "doom_settings.h"
+#include "doom_leds.h"
 
 // pico_emuLoader bootloader handshake. Two watchdog scratch registers carry
 // one-direction signals between the resident pico-bootLoader and the app it
@@ -80,6 +85,31 @@ void __attribute__((noreturn)) doom_reboot_to_loader(void)
     for (;;) {
         tight_loop_contents();
     }
+#else
+    exit(0);
+#endif
+}
+
+void __attribute__((noreturn)) doom_reboot_to_bootsel(void)
+{
+#if PICO_ON_DEVICE
+    printf("\ndoom: bootsel\n");
+    stdio_flush();
+    // Unlike the two resets above, this one is entered straight from the
+    // Options menu: M_ClearMenus() never runs, so its flush never happens, and
+    // I_AtExit handlers never run here either. Without this the player loses
+    // whatever they changed in the very menu they are standing in.
+    doom_settings_flush();
+    // The reset clears the PIO but not the pixels' latched colours, so the VU
+    // meter would otherwise stay lit through the whole BOOTSEL session.
+    doom_leds_off();
+    doom_wiipad_shutdown(); // see doom_reboot_to_loader()
+    // Into the ROM bootloader, i.e. the RP2350 UF2 drive -- not the resident
+    // pico-bootLoader picker that doom_reboot_to_loader() goes back to. Both
+    // arguments 0: no activity-LED GPIO, and leave both USB MSD and PICOBOOT
+    // enabled. pico_bootrom comes in transitively via hardware_watchdog, so
+    // this needs no CMake change.
+    reset_usb_boot(0, 0);
 #else
     exit(0);
 #endif

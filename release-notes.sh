@@ -28,7 +28,9 @@ OUT=release-notes.md
     echo "## What to flash"
     echo
     echo "Hold BOOTSEL, plug in USB, then drag **both** the firmware and the WAD"
-    echo "data file onto the RPI-RP2 drive."
+    echo "data file onto the RPI-RP2 drive. If the board is already running v0.2 or"
+    echo "later, **Options → Bootsel Mode** brings that drive back up without"
+    echo "unplugging anything."
     echo
     echo "| Board | Firmware | WAD data |"
     echo "|---|---|---|"
