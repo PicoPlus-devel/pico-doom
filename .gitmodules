@@ -1,3 +1,3 @@
 [submodule "3rdparty/tusb_xinput"]
 	path = 3rdparty/tusb_xinput
-	url = https://github.com/fhoedemakers/tusb_xinput.git
+	url = https://github.com/PicoPlus-devel/tusb_xinput.git
