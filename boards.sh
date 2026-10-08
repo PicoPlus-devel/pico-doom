@@ -8,7 +8,7 @@
 # (<tag>-build-forbootloader.sh) are built in the pico-bootLoader repo, which
 # invokes those scripts itself.
 
-RELEASE_BOARDS="fruitjam adafruitdvisd murmulatorm2 featherrp2350"
+RELEASE_BOARDS="fruitjam adafruitdvisd murmulatorm2 featherrp2350 olimexpicopc"
 
 # Human-readable name, for the release notes.
 board_name() {
@@ -17,13 +17,14 @@ board_name() {
         adafruitdvisd) echo "Pico 2 / Pico Plus 2 + Adafruit DVI breakout" ;;
         murmulatorm2)  echo "Murmulator M2 (RP2350)" ;;
         featherrp2350) echo "Adafruit Feather RP2350 + TLV320 breakout" ;;
+        olimexpicopc)  echo "Olimex RP2040-PICO-PC + Pico 2" ;;
         *)             echo "$1" ;;
     esac
 }
 
 # Where the WAD data (doom1.whx) is flashed by the standalone builds. Must match
 # the non-BUILD_FOR_BOOTLOADER branch of TINY_WAD_ADDR in every <tag>_cflags.h,
-# which is the same offset on all four boards.
+# which is the same offset on all five boards.
 #
 # The pico-bootLoader builds use two other offsets that depend on the board's
 # flash size (0x10200000 behind the 1.5 MB app slot on the 4 MB boards,

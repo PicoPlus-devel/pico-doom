@@ -80,7 +80,7 @@ if [ -d .git ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Firmware: 2 variants x 4 boards.
+# Firmware: 2 variants x 5 boards.
 #
 # Every board's build script writes doom_tiny.uf2 / doom_tiny_full.uf2 under the
 # same basename, so the copy into releases/ has to rename per configuration or

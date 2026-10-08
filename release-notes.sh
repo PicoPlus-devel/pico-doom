@@ -71,8 +71,9 @@ done
     echo '```'
     echo
     echo "Requires PSRAM on the board (onboard on the Fruit Jam and Murmulator M2; a"
-    echo "Pimoroni Pico Plus 2 or a wired APS6404 on the other two). Do **not** flash a"
-    echo "\`doom1-whx\` file alongside these builds."
+    echo "Pimoroni Pico Plus 2, a wired APS6404 or a PSRAM chip fitted to the Pico 2 on"
+    echo "GPIO 8 on the other three). Do **not** flash a \`doom1-whx\` file alongside"
+    echo "these builds."
     echo
     echo "> **Note:** the \`_full\` variants have not been verified on hardware yet."
     echo

@@ -1,14 +1,14 @@
 # pico-doom — Doom on RP2350 boards with HSTX video
 
 A port of **Doom** to the RP2350. The reference board is the
-[Adafruit Fruit Jam](https://www.adafruit.com/product/6200) (RP2350B); three more
+[Adafruit Fruit Jam](https://www.adafruit.com/product/6200) (RP2350B); four more
 HSTX boards build from the same tree — Pico 2 with the Adafruit DVI Breakout, the
-Murmulator M2, and the Adafruit Feather RP2350 (see
-[Other supported boards](#other-supported-boards)).
+Murmulator M2, the Adafruit Feather RP2350, and the Olimex RP2040-PICO-PC with a
+Pico 2 (see [Other supported boards](#other-supported-boards)).
 
 It runs the full shareware `DOOM1.WAD` from flash, drives an HDMI display over
 HSTX, plays music and sound effects — over that same HDMI link *or* through an
-I2S DAC (TLV320DAC3100 or PCM5100A) to speaker/headphones — and takes input from
+I2S DAC (TLV320DAC3100 or PCM5100A) or a PWM audio jack to speaker/headphones — and takes input from
 USB keyboards, mice, and gamepads, plus NES/SNES pads on the boards that have
 those ports.
 
@@ -23,7 +23,7 @@ see [README-chocolate.md](README-chocolate.md).
 ## Quick start — flash a prebuilt release
 
 **You do not have to build anything.** Every
-[release](../../releases) ships ready-to-flash `.uf2` files for all four boards,
+[release](../../releases) ships ready-to-flash `.uf2` files for all five boards,
 plus the converted shareware WAD and the `whd_gen` host tool. Grab the newest
 one and you are playing in a couple of minutes.
 
@@ -37,6 +37,7 @@ one and you are playing in a couple of minutes.
    | Pico 2 / Pico Plus 2 + Adafruit DVI breakout | `doom_tiny_adafruitdvisd.uf2` | `doom1-whx.uf2` |
    | Murmulator M2 (RP2350) | `doom_tiny_murmulatorm2.uf2` | `doom1-whx.uf2` |
    | Adafruit Feather RP2350 + TLV320 breakout | `doom_tiny_featherrp2350.uf2` | `doom1-whx.uf2` |
+   | Olimex RP2040-PICO-PC + Pico 2 | `doom_tiny_olimexpicopc.uf2` | `doom1-whx.uf2` |
 
 2. **Plug in your peripherals first** — HDMI display, and a USB keyboard, mouse
    or [gamepad](#controls). USB hot-plug is not reliable, so the devices have to
@@ -112,8 +113,8 @@ the build host is for compiling from source.
   (`git -C $PICO_SDK_PATH submodule update --init`): tinyusb comes from the SDK's
   `lib/tinyusb`, not from this repository. `PICO_PIO_USB_PATH` is only needed by
   the boards whose USB host runs on PIO — the Fruit Jam and the Feather RP2350;
-  the Pico 2 and Murmulator M2 builds use native USB and pass
-  `-DENABLE_PIO_USB=0`. Every build script validates these paths up front via
+  the Pico 2, Murmulator M2 and Olimex RP2040-PICO-PC builds use native USB and
+  pass `-DENABLE_PIO_USB=0`. Every build script validates these paths up front via
   [pico-env.sh](pico-env.sh) and stops with a clear message if one is wrong.
 
 * **tinyusb newer than the 0.20.0 tag**, inside that SDK. SDK 2.2.0 pins
@@ -270,6 +271,7 @@ file — panics with a descriptive UART message.
 | Pico 2 + DVI (`adafruitdvisd`) | fit a [Pimoroni Pico Plus 2](https://shop.pimoroni.com/products/pimoroni-pico-plus-2) (8 MB PSRAM on GPIO 47) instead of a stock Pico 2 |
 | Murmulator M2 (`murmulatorm2`) | onboard (GPIO 8) |
 | Feather RP2350 (`featherrp2350`) | external APS6404 wired to GPIO 8 |
+| Olimex RP2040-PICO-PC + Pico 2 (`olimexpicopc`) | a PSRAM chip fitted on GPIO 8 (a stock Pico 2 has none) |
 
 ## Saved games and settings
 
@@ -315,7 +317,7 @@ depends on which build you ran. These values come from `TINY_WAD_ADDR` in
 
 These addresses are for the Fruit Jam. The other boards share the standalone map
 (WHX at `0x10080000`); their **bootloader** maps differ — the 4 MB Pico 2 boards
-(`adafruitdvisd`, `murmulatorm2`) place the WHX at `0x10200000`. See
+(`adafruitdvisd`, `murmulatorm2`, `olimexpicopc`) place the WHX at `0x10200000`. See
 [Other supported boards](#other-supported-boards).
 
 ## Converting a different WAD (`whd_gen`)
@@ -463,7 +465,7 @@ warning rather than an error, so an unrelated commit cannot block a release.
 
 ## Other supported boards
 
-Besides the Fruit Jam, three more RP2350 HSTX boards from the
+Besides the Fruit Jam, four more RP2350 HSTX boards from the
 [pico_shared](https://github.com/fhoedemakers/pico_shared) family are
 supported. Each has its own pin header (`<tag>_cflags.h`) and script pair —
 `<tag>-build.sh` (standalone) and `<tag>-build-forbootloader.sh`
@@ -476,6 +478,7 @@ supported. Each has its own pin header (`<tag>_cflags.h`) and script pair —
 | `adafruitdvisd` | 2 | Pico 2 + Adafruit DVI Breakout + SD breakout (breadboard or PCB) | native USB (OTG adapter) | HDMI + optional PCM5100A on GPIO 26/27 | 2× NES/SNES |
 | `murmulatorm2` | 13 | Murmulator M2 (Pico 2 module) | native USB (OTG adapter) | HDMI + PCM5100A | 2× NES/SNES, Wii (GPIO 0/1) |
 | `featherrp2350` | 14 | Adafruit Feather RP2350 + TLV320DAC3100 breakout | PIO-USB on GPIO 24/25 (USB Host FeatherWing) | HDMI + TLV320 | Wii (STEMMA QT, GPIO 2/3) |
+| `olimexpicopc` | 15 | Olimex RP2040-PICO-PC with a Raspberry Pi Pico 2 | native USB (USB-A socket) | HDMI + PWM audio jack (GPIO 28/27) | 1× NES/SNES (UEXT: CLK 5, LAT 9, DATA 20) |
 
 The Fruit Jam itself has no NES/SNES ports, but does have a Wii extension port
 on its STEMMA QT connector (GPIO 20/21).
@@ -483,14 +486,16 @@ on its STEMMA QT connector (GPIO 20/21).
 Notes:
 
 * **USB stack** — the Fruit Jam and Feather run the USB host on Pico-PIO-USB;
-  the other two use the RP2350's native USB controller (plug gamepads in via
-  an OTG adapter). The transport is fixed at build time: the board header's
+  the other three use the RP2350's native USB controller (plug gamepads in via
+  an OTG adapter, or into the USB-A socket of the Olimex board). The transport is fixed at build time: the board header's
   `HAS_USBPIO` define and the script's `-DENABLE_PIO_USB=` value must agree.
 * **Audio** — boards without the Fruit Jam's headphone-detect pin play audio
-  on HDMI *and* the I2S DAC simultaneously instead of switching sinks.
+  on HDMI *and* the I2S DAC simultaneously instead of switching sinks. The
+  Olimex board has no I2S DAC; it plays on HDMI and its PWM audio jack
+  (left GPIO 28, right GPIO 27) simultaneously.
 * **NES/SNES controllers** — configs 2 and 13 poll two legacy controller
-  ports through the vendored pico_shared `nespad` PIO driver; SNES pads are
-  auto-detected. They use the same layout as the USB pads (see
+  ports, and config 15 one port on its UEXT connector, through the vendored
+  pico_shared `nespad` PIO driver; SNES pads are auto-detected. They use the same layout as the USB pads (see
   [Gamepad](#gamepad) below), including the optional NES pad layout.
 * **Wii extension port** — configs 8, 13 and 14 additionally read a Wii
   extension connector over I2C through the vendored pico_shared `wiipad`
@@ -499,12 +504,16 @@ Notes:
   the codec — an uninitialized pad on the bus would otherwise make every DAC
   register access time out.
 * **Flash size for bootloader builds** — the bootloader map is sized per board.
-  Fruit Jam (16 MB) and Feather (8 MB) place the WHX at `0x10400000`. The two
-  Pico 2 boards (`adafruitdvisd`, `murmulatorm2`) cap the map to the 4 MB chip:
-  a 1.5 MB app slot at `0x10080000` and the WHX at `0x10200000` (ending
-  ~`0x103B7900`, comfortably under the 4 MB mark), so their bootloader builds
-  run on a **genuine 4 MB Pico 2** as well as larger clone modules. Standalone
-  builds (WHX at `0x10080000`) fit every board.
+  Fruit Jam (16 MB) and Feather (8 MB) place the WHX at `0x10400000`. The three
+  Pico 2 boards (`adafruitdvisd`, `murmulatorm2`, `olimexpicopc`) cap the map to
+  the 4 MB chip: a 1.5 MB app slot at `0x10080000` and the WHX at `0x10200000`
+  (ending ~`0x103B7900`, comfortably under the 4 MB mark), so their bootloader
+  builds run on a **genuine 4 MB Pico 2** as well as larger clone modules. On the
+  Olimex board the last 260 KB of flash (from `0x103BF000`) hold pico-launcher;
+  the WHX ends about 30 KB below it. Standalone builds (WHX at `0x10080000`) fit
+  every board.
+* **Olimex RP2040-PICO-PC** — the board's PS/2 port (GPIO 0/1) is not supported,
+  and the serial console is disabled so that those pins stay free.
 * **Video jitter trade-off** — on the native-USB boards `clk_hstx` is derived
   from PLL_SYS (PLL_USB must stay at 48 MHz for the USB controller), so very
   strict HDMI sinks may show occasional sparkles; the PIO-USB boards keep the

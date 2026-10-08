@@ -45,6 +45,7 @@
 #include "pico_hdmi_glue.h"            // hstx_push_audio_sample, doom_audio_sink, doom_poll_headphone
 #include "hstx_data_island_queue.h"    // hstx_di_queue_get_level
 #include "doom_leds.h"                 // doom_vu_add_chunk (stubs out without a strip)
+#include "pwm_audio.h"                 // pico_shared: PWM audio jack (no-op stubs without one)
 
 // Compile-time defs from 3rdparty/pico_shared_drivers/drivers/pico_hdmi/CMakeLists.txt.
 // Fall back to upstream defaults if this file is compiled without them.
@@ -59,6 +60,12 @@
 #ifndef DOOM_AUDIO_I2S_DRIVER
 #define DOOM_AUDIO_I2S_DRIVER PICO_AUDIO_I2S_DRIVER_TLV320
 #endif
+
+// Boards without an I2S DAC (driver 0 = PICO_AUDIO_I2S_DRIVER_NONE, e.g. the
+// Olimex RP2040-PICO-PC) play over HDMI and, where the board has one, the PWM
+// audio jack. The I2S ring is then never allocated, so nothing may enqueue to
+// it or pace the mixer by it; the HDMI data-island ring does the pacing alone.
+#define DOOM_AUDIO_HAS_I2S (DOOM_AUDIO_I2S_DRIVER != PICO_AUDIO_I2S_DRIVER_NONE)
 
 // Headphone-detect is only available on the TLV320 with its INT pin wired
 // (Fruit Jam). Boards without it (PCM5100A boards, Feather's TLV320 breakout)
@@ -395,6 +402,7 @@ static void I_Pico_UpdateSound(void)
     // register writes and speaker-mute path are safe to do.
     doom_poll_headphone();
 
+#if DOOM_AUDIO_HAS_I2S
     // Back-pressure: don't mix if the I2S ring is too full — the extra
     // samples would just drop in audio_i2s_enqueue_sample(). Keep ~half the
     // ring free so a burst of writes doesn't cause underflow if we get
@@ -402,6 +410,7 @@ static void I_Pico_UpdateSound(void)
     if (audio_i2s_get_freebuffer_size() < MIX_CHUNK_SAMPLES) {
         return;
     }
+#endif
 
     // HDMI DI-ring back-pressure: pd_end_frame() busy-loops calling
     // I_UpdateSound(), each call packs MIX_CHUNK_SAMPLES/4 packets in one
@@ -526,7 +535,7 @@ static void I_Pico_UpdateSound(void)
             audio_i2s_enqueue_sample(0);
         }
     }
-#else
+#elif DOOM_AUDIO_HAS_I2S
     // No headphone detect on this board: feed real samples to both sinks.
     // doom_audio_sink stays at its DOOM_SINK_HDMI default, so the DI-ring
     // back-pressure gate above still applies, and the I2S ring keeps its
@@ -536,6 +545,14 @@ static void I_Pico_UpdateSound(void)
         int16_t r = *sp++;
         hstx_push_audio_sample((int)l, (int)r);
         audio_i2s_enqueue_sample(((uint32_t)(uint16_t)l << 16) | (uint16_t)r);
+    }
+#else
+    // No I2S DAC: HDMI only, paced by the DI-ring gate above. A PWM audio jack,
+    // if the board has one, takes its copy inside hstx_push_audio_sample().
+    for (uint32_t s = 0; s < n; s++) {
+        int16_t l = *sp++;
+        int16_t r = *sp++;
+        hstx_push_audio_sample((int)l, (int)r);
     }
 #endif
 }
@@ -553,6 +570,7 @@ static boolean I_Pico_InitSound(boolean _use_sfx_prefix)
 {
     use_sfx_prefix = _use_sfx_prefix;
 
+#if DOOM_AUDIO_HAS_I2S
     // pico_shared: DAC register program (TLV320 boards) + I2S PIO/DMA +
     // immediate silence pre-fill so BCLK is up and the DAC PLL locks before
     // we push any real audio. The driver id comes from the board's cflags
@@ -585,6 +603,12 @@ static boolean I_Pico_InitSound(boolean _use_sfx_prefix)
     gpio_set_drive_strength(PICO_AUDIO_I2S_CLOCK_PIN_BASE, GPIO_DRIVE_STRENGTH_12MA);
     gpio_set_drive_strength(PICO_AUDIO_I2S_CLOCK_PIN_BASE+1, GPIO_DRIVE_STRENGTH_12MA);
 #endif
+#endif // DOOM_AUDIO_HAS_I2S
+
+    // PWM audio jack (Olimex RP2040-PICO-PC), a no-op on boards without one.
+    // On core0, after the clocks are final: the PWM wrap is derived from
+    // clk_sys and its interrupt runs on the core that calls this.
+    pwm_audio_init(PICO_SOUND_SAMPLE_FREQ);
 
     sound_initialized = true;
     return true;

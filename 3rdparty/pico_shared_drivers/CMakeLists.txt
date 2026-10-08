@@ -13,6 +13,8 @@
 #                             the Wii pad, which share SDA/SCL)
 #   pico_fatfs               (FatFs R0.15 + SD card over HW-SPI / PIO-SPI)
 #   pico_psram               (RP2350 QMI CS1 PSRAM init; trimmed, see its CMakeLists)
+#   pico_shared_pwm_audio    (stereo PWM audio jack fed with the HDMI samples;
+#                             Olimex RP2040-PICO-PC)
 #
 # Resync by re-copying from pico_shared/drivers, then re-apply the local patches:
 #   pico_audio_i2s/CMakeLists.txt  target renamed (clashes with pico-extras)
@@ -27,7 +29,7 @@
 # (hid_app.cpp, gamepad.cpp, gamepad.h) and depends on the 3rdparty/tusb_xinput
 # submodule for the XInput host class driver. nespad and wiipad are copied from
 # the pico_shared root as well (nespad.h, nespad.cpp, nespad.pio; wiipad.h,
-# wiipad.cpp). pico_fatfs omits upstream's tests/, doc/ and
+# wiipad.cpp; pwm_audio.h, pwm_audio.c). pico_fatfs omits upstream's tests/, doc/ and
 # fatfs_R0.15Patch1/ (not built there either); pico_psram compiles
 # SetupPsram.c only.
 
@@ -44,6 +46,10 @@ if (PICO_ON_DEVICE)
     # `#if WII_PIN_SDA >= 0`, which an undefined macro would satisfy. Only
     # device builds force-include a board header that defines the pins.
     add_subdirectory(wiipad)
+    # PWM audio jack: compiled away unless the board header sets
+    # PWM_AUDIO_PIN_L >= 0. Device-only, like wiipad, because only device
+    # builds force-include a board header.
+    add_subdirectory(pwm_audio)
     # SD card: save games and settings on every board, plus the WHD itself on
     # the doom_tiny_full WHD_LOAD_FROM_SD variant, which also needs the PSRAM.
     add_subdirectory(drivers/pico_fatfs)
