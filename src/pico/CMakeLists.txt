@@ -45,8 +45,12 @@ if (PICO_ON_DEVICE)
     # so the driver is no longer specific to the WHD_LOAD_FROM_SD build.
     # hardware_pio: the WS2812 VU meter in doom_leds.c, which must not depend
     # on the USE_HSTX branch below for its link.
+    # pico_shared_pwm_audio: the PWM audio jack, fed from hstx_push_audio_sample
+    # in pico_hdmi_glue.c — compiled everywhere, a no-op unless the board's
+    # cflags header defines PWM_AUDIO_PIN_L >= 0 (Olimex RP2040-PICO-PC).
     target_link_libraries(common_pico INTERFACE  hardware_i2c pico_shared_nespad
-            pico_shared_wiipad i2c_bus_recovery pico_fatfs hardware_pio)
+            pico_shared_wiipad i2c_bus_recovery pico_fatfs hardware_pio
+            pico_shared_pwm_audio)
 endif()
 target_include_directories(common_pico INTERFACE
         ${CMAKE_CURRENT_LIST_DIR}

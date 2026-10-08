@@ -20,6 +20,7 @@
 #include "video_output.h"
 
 #include "audio_i2s.h"       // pico_shared: audio_i2s_muteInternalSpeaker
+#include "pwm_audio.h"       // pico_shared: PWM audio jack (no-op stubs without one)
 #include "tlv320dac3100.h"   // pico_shared: tlv320_poll_headphone
 
 #include <stdio.h>
@@ -75,13 +76,15 @@ void doom_hdmi_init(video_output_scanline_cb_t scanline_cb,
 // Verbatim from pico_shared/pico_hdmi/hstx.c:272-296. Accumulates 4 samples
 // per HDMI audio data-island, encodes with hstx_packet_set_audio_samples,
 // pushes into the DI ring. Drops on high-watermark so we never block the
-// audio mixer running on core0.
+// audio mixer running on core0. Like upstream, every sample is first handed
+// to the PWM audio jack, which therefore plays at the HDMI pace.
 #ifndef HSTX_AUDIO_DI_HIGH_WATERMARK
 #define HSTX_AUDIO_DI_HIGH_WATERMARK 200
 #endif
 
 void __not_in_flash_func(hstx_push_audio_sample)(int left, int right)
 {
+    pwm_audio_push(left, right); // the PWM audio jack plays the same samples (no-op without one)
     static int g_hdmi_audio_frame_counter = 0;
     static audio_sample_t acc_buf[4];
     static int acc_count = 0;

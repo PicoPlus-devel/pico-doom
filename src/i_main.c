@@ -295,7 +295,13 @@ setPage(0);
 #endif
 #if PICO_ON_DEVICE
 #include "pico/binary_info.h"
+// Boards without an I2S DAC set the I2S pins to -1, which a pin mask cannot
+// hold; the Olimex RP2040-PICO-PC lists its PWM audio jack instead.
+#if PICO_AUDIO_I2S_DATA_PIN >= 0
 bi_decl(bi_3pins_with_names(PICO_AUDIO_I2S_DATA_PIN, "I2S DIN", PICO_AUDIO_I2S_CLOCK_PIN_BASE, "I2S BCK", PICO_AUDIO_I2S_CLOCK_PIN_BASE+1, "I2S LRCK"));
+#elif defined(PWM_AUDIO_PIN_L) && PWM_AUDIO_PIN_L >= 0
+bi_decl(bi_2pins_with_names(PWM_AUDIO_PIN_L, "PWM audio L", PWM_AUDIO_PIN_R, "PWM audio R"));
+#endif
 #endif
 
 
