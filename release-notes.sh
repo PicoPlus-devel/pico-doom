@@ -70,11 +70,11 @@ done
     echo "whd_gen doom.wad doom.whd -no-super-tiny"
     echo '```'
     echo
-    echo "Requires PSRAM on the board (onboard on the Fruit Jam and Murmulator M2; a"
-    echo "Pimoroni Pico Plus 2, a wired APS6404 or a PSRAM chip fitted to the Pico 2 on"
-    echo "GPIO 8 on the next three; a PSRAM chip soldered onto the Waveshare RP2350-PiZero"
-    echo "on the PCB by Liu Szuping). Do **not** flash a \`doom1-whx\` file alongside"
-    echo "these builds."
+    echo "Requires PSRAM on the board (onboard on the Fruit Jam, the Murmulator M2 and the"
+    echo "Pico Computer 3; a Pimoroni Pico Plus 2, a wired APS6404 or a PSRAM chip fitted"
+    echo "to the Pico 2 on GPIO 8 on the next three; a PSRAM chip soldered onto the Waveshare"
+    echo "RP2350-PiZero on the PCB by Liu Szuping). Do **not** flash a \`doom1-whx\` file"
+    echo "alongside these builds."
     echo
     echo "### Using the pico-bootLoader"
     echo

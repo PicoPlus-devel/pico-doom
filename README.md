@@ -1,11 +1,11 @@
 # pico-doom — Doom on RP2350 boards with HSTX video
 
 A port of **Doom** to the RP2350. The reference board is the
-[Adafruit Fruit Jam](https://www.adafruit.com/product/6200) (RP2350B); five more
+[Adafruit Fruit Jam](https://www.adafruit.com/product/6200) (RP2350B); six more
 HSTX boards build from the same tree — Pico 2 with the Adafruit DVI Breakout, the
 Murmulator M2, the Adafruit Feather RP2350, the Olimex RP2040-PICO-PC with a
-Pico 2, and the Waveshare RP2350-PiZero on the PCB by Liu Szuping (see
-[Other supported boards](#other-supported-boards)).
+Pico 2, the Waveshare RP2350-PiZero on the PCB by Liu Szuping, and the Pico
+Computer 3 (see [Other supported boards](#other-supported-boards)).
 
 It runs the full shareware `DOOM1.WAD` from flash, drives an HDMI display over
 HSTX, plays music and sound effects — over that same HDMI link *or* through an
@@ -24,7 +24,7 @@ see [README-chocolate.md](README-chocolate.md).
 ## Quick start — flash a prebuilt release
 
 **You do not have to build anything.** Every
-[release](../../releases) ships ready-to-flash `.uf2` files for all six boards,
+[release](../../releases) ships ready-to-flash `.uf2` files for all seven boards,
 plus the converted shareware WAD, the `whd_gen` host tool and the Gerber files
 of the [PicoNES PCB](#picones-pcb). Grab the newest
 one and you are playing in a couple of minutes.
@@ -41,6 +41,7 @@ one and you are playing in a couple of minutes.
    | Adafruit Feather RP2350 + TLV320 breakout | `doom_tiny_featherrp2350.uf2` | `doom1-whx.uf2` |
    | Olimex RP2040-PICO-PC + Pico 2 | `doom_tiny_olimexpicopc.uf2` | `doom1-whx.uf2` |
    | Waveshare RP2350-PiZero on the PCB by Liu Szuping | `doom_tiny_pizeroliupcb.uf2` | `doom1-whx.uf2` |
+   | Pico Computer 3 (PC3), not yet tested | `doom_tiny_picocomputer3.uf2` | `doom1-whx.uf2` |
 
 2. **Plug in your peripherals first** — HDMI display, and a USB keyboard, mouse
    or [gamepad](#controls). USB hot-plug is not reliable, so the devices have to
@@ -117,15 +118,15 @@ the build host is for compiling from source.
   (`git -C $PICO_SDK_PATH submodule update --init`): tinyusb comes from the SDK's
   `lib/tinyusb`, not from this repository. `PICO_PIO_USB_PATH` is only needed by
   the boards whose USB host runs on PIO — the Fruit Jam, the Feather RP2350 and
-  the Waveshare RP2350-PiZero on Liu Szuping's PCB; the Pico 2, Murmulator M2 and
-  Olimex RP2040-PICO-PC builds use native USB and
+  the Waveshare RP2350-PiZero on Liu Szuping's PCB; the Pico 2, Murmulator M2,
+  Olimex RP2040-PICO-PC and Pico Computer 3 builds use native USB and
   pass `-DENABLE_PIO_USB=0`. Every build script validates these paths up front via
   [pico-env.sh](pico-env.sh) and stops with a clear message if one is wrong.
 
 * **The tinyusb that SDK 2.2.0 includes (0.18.0)**, not tinyusb's master branch.
   Master of 2026 rewrote the driver for the RP2350's native USB port; with it, USB
   devices behind a hub on the native-USB builds (Pico 2, Murmulator M2, Olimex
-  RP2040-PICO-PC) were often not detected, and the firmware could stop with a panic
+  RP2040-PICO-PC, Pico Computer 3) were often not detected, and the firmware could stop with a panic
   (`buf_ctrl … already available`, `Data Seq Error`). The XInput host driver
   (`3rdparty/tusb_xinput`) builds with either version: tinyusb changed
   `usbh_class_driver_t.open` from `bool` to the length of the descriptors it takes
@@ -293,6 +294,7 @@ file — panics with a descriptive UART message.
 | Feather RP2350 (`featherrp2350`) | external APS6404 wired to GPIO 8 |
 | Olimex RP2040-PICO-PC + Pico 2 (`olimexpicopc`) | a PSRAM chip fitted on GPIO 8 (a stock Pico 2 has none) |
 | Waveshare RP2350-PiZero on Liu Szuping's PCB (`pizeroliupcb`) | a PSRAM chip soldered onto the RP2350-PiZero (GPIO 47); see the [notes on this board](#other-supported-boards) |
+| Pico Computer 3 (`picocomputer3`) | onboard 8 MB (GPIO 47) |
 
 ## Saved games and settings
 
@@ -447,9 +449,9 @@ running those two scripts locally *is* testing the pipeline.
 ./release-notes.sh v1.0          # writes release-notes.md, the release body
 ```
 
-`buildAll.sh` builds the standalone and SD-card variant for all five boards,
+`buildAll.sh` builds the standalone and SD-card variant for all seven boards,
 converts `doom1.whx` at the standalone flash offset, and copies the prebuilt
-`whd_gen` binaries in — 14 files in all. The workflow then downloads the Gerber
+`whd_gen` binaries in — 18 files in all. The workflow then downloads the Gerber
 files of the [PicoNES PCB](#picones-pcb) from pico_shared and attaches them as
 well. The pico-bootLoader variants are **not** released here: they are built
 in the [pico-bootLoader](https://github.com/PicoPlus-devel/pico-bootLoader) repository,
@@ -490,7 +492,7 @@ warning rather than an error, so an unrelated commit cannot block a release.
 
 ## Other supported boards
 
-Besides the Fruit Jam, five more RP2350 HSTX boards from the
+Besides the Fruit Jam, six more RP2350 HSTX boards from the
 [pico_shared](https://github.com/PicoPlus-devel/pico_shared) family are
 supported. Each has its own pin header (`<tag>_cflags.h`) and script pair —
 `<tag>-build.sh` (standalone) and `<tag>-build-forbootloader.sh`
@@ -505,6 +507,7 @@ supported. Each has its own pin header (`<tag>_cflags.h`) and script pair —
 | `featherrp2350` | 14 | Adafruit Feather RP2350 + TLV320DAC3100 breakout | PIO-USB on GPIO 24/25 (USB Host FeatherWing) | HDMI + TLV320 | Wii (STEMMA QT, GPIO 2/3) |
 | `olimexpicopc` | 15 | Olimex RP2040-PICO-PC with a Raspberry Pi Pico 2 | native USB (USB-A socket) | HDMI + PWM audio jack (GPIO 28/27) | 1× NES/SNES (UEXT: CLK 5, LAT 9, DATA 20) |
 | `pizeroliupcb` | 18 | Waveshare RP2350-PiZero on the PCB by Liu Szuping | PIO-USB on GPIO 28/29 (the PiZero's PIO-USB port) | HDMI + PCM5102 (audio jack) | 2× NES/SNES |
+| `picocomputer3` | 17 | [Pico Computer 3](https://github.com/UKTailwind/Pico-Computer-3) (PC3), not yet tested | native USB (USB-A ports, behind the board's hub) | HDMI + PCM5102 (audio jack) | 2× NES/SNES, Wii (GPIO 20/21), on the I/O header |
 
 The Fruit Jam itself has no NES/SNES ports, but does have a Wii extension port
 on its STEMMA QT connector (GPIO 20/21).
@@ -512,18 +515,19 @@ on its STEMMA QT connector (GPIO 20/21).
 Notes:
 
 * **USB stack** — the Fruit Jam, Feather and `pizeroliupcb` run the USB host on Pico-PIO-USB;
-  the other three use the RP2350's native USB controller (plug gamepads in via
-  an OTG adapter, or into the USB-A socket of the Olimex board). The transport is fixed at build time: the board header's
+  the other four use the RP2350's native USB controller (plug gamepads in via
+  an OTG adapter, or into the USB-A sockets of the Olimex board and the Pico
+  Computer 3). The transport is fixed at build time: the board header's
   `HAS_USBPIO` define and the script's `-DENABLE_PIO_USB=` value must agree.
 * **Audio** — boards without the Fruit Jam's headphone-detect pin play audio
   on HDMI *and* the I2S DAC simultaneously instead of switching sinks. The
   Olimex board has no I2S DAC; it plays on HDMI and its PWM audio jack
   (left GPIO 28, right GPIO 27) simultaneously.
-* **NES/SNES controllers** — configs 2, 13 and 18 poll two legacy controller
+* **NES/SNES controllers** — configs 2, 13, 17 and 18 poll two legacy controller
   ports, and config 15 one port on its UEXT connector, through the vendored
   pico_shared `nespad` PIO driver; SNES pads are auto-detected. They use the same layout as the USB pads (see
   [Gamepad](#gamepad) below), including the optional NES pad layout.
-* **Wii extension port** — configs 8, 13 and 14 additionally read a Wii
+* **Wii extension port** — configs 8, 13, 14 and 17 additionally read a Wii
   extension connector over I2C through the vendored pico_shared `wiipad`
   driver (see [Wii pads](#wii-pads) below). On the Fruit Jam and Feather that
   bus is shared with the TLV320 codec, so the pad is brought up first, before
@@ -558,6 +562,17 @@ Notes:
   the design is not yet available.
 * **Olimex RP2040-PICO-PC** — the board's PS/2 port (GPIO 0/1) is not supported,
   and the serial console is disabled so that those pins stay free.
+* **Pico Computer 3** — an RP2350B board with an HDMI connector, a microSD card
+  slot, 8 MB PSRAM, a four-port USB hub and an audio jack; the pico_shared
+  emulators call it HW_CONFIG 17 (contributed there by
+  [javavi](https://github.com/javavi)). **Not yet tested on hardware**, and the
+  pin assignment of its I/O header may still change. Up to three USB devices
+  work at the same time on the USB-A ports. Two NES or SNES controllers connect
+  to the external I/O header H4 and share the clock and latch lines: clock
+  GPIO 4, latch GPIO 5, data GPIO 6 (port 1) and GPIO 7 (port 2). A Wii pad
+  connects to I2C0, SDA GPIO 20 and SCL GPIO 21. The serial console is UART1,
+  TX GPIO 8 and RX GPIO 9. The heartbeat LED on GPIO 25 blinks when jumper H5
+  is set to 1-2. The pico-bootLoader does not support this board yet.
 
 ## PicoNES PCB
 
@@ -751,7 +766,8 @@ keeps working, with **B**/**A** as NES A and **Y**/**X** as NES B.
 #### Wii pads
 
 Boards with a Wii extension connector (Fruit Jam and Feather on their STEMMA QT
-port, Murmulator M2 on GPIO 0/1 — see [Other supported boards](#other-supported-boards)) also take
+port, Murmulator M2 on GPIO 0/1, Pico Computer 3 on GPIO 20/21 — see
+[Other supported boards](#other-supported-boards)) also take
 a **NES Classic Mini**, **SNES Classic Mini** or **Wii Classic Controller
 (Pro)** pad, on an adapter such as the
 [Adafruit Wii Nunchuck Adapter #4836](https://www.adafruit.com/product/4836).

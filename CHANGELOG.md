@@ -4,6 +4,18 @@ Add a section per release, headed with the tag. `release-notes.sh` extracts the
 section matching the tag being released and puts it in the GitHub release body,
 so keep the heading text exactly the tag name.
 
+## v0.7
+
+### Added
+
+- **[Pico Computer 3](https://github.com/UKTailwind/Pico-Computer-3)** is now supported
+  (`doom_tiny_picocomputer3.uf2`, and `doom_tiny_picocomputer3_full.uf2` for the full
+  game from the SD card). Picture over HDMI, sound over HDMI and the audio jack at the
+  same time, up to three USB devices (keyboard, mouse, gamepad) on the USB-A ports, and
+  two NES/SNES controllers and a Wii Classic Controller on the I/O header. Not yet
+  tested on this board, and the pin assignment may still change. Thanks to @javavi, who
+  added the board to pico_shared.
+
 ## v0.6
 
 ### Added

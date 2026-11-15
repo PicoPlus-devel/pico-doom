@@ -25,8 +25,8 @@ endif()
 set(_DOOM_BOOTPARTITION_INCLUDED 1)
 
 # Defaults below are the 16 MB Fruit Jam map with a 3 MB app slot, which only
-# the doom_tiny_full variants of the Fruit Jam, Feather and pizeroliupcb still
-# use. Every
+# the doom_tiny_full variants of the Fruit Jam, Feather, pizeroliupcb and
+# picocomputer3 still use. Every
 # doom_tiny build passes DOOM_APP_SIZE (1.5 MB), and the 4 MB Pico 2 boards
 # (adafruitdvisd, murmulatorm2, olimexpicopc) DOOM_FLASH_TOTAL (4 MB) too, via
 # -D on the cmake line -- see the *-build-forbootloader.sh scripts. These are

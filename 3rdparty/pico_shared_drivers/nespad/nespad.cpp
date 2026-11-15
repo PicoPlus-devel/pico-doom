@@ -7,7 +7,7 @@
 // Up,Down,Left,Right,A,X,L,R + 4 ID bits) are read in full. Plain NES
 // controllers simply shift out low for bits 9-16; nespad_read_finish()
 // detects that and masks the result back to 8 bits.
-#if HW_CONFIG == 12 || HW_CONFIG == 13 // Murmulator M1/M2 bothe controllers ahare latch and clock
+#if HW_CONFIG == 12 || HW_CONFIG == 13 || HW_CONFIG == 17 // Murmulator M1/M2 and Pico Computer 3: both controllers share latch and clock
 static const uint16_t nespad_program_instructions[] = {
     //     .wrap_target
     // @javavi pull request

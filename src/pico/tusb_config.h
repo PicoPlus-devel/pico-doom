@@ -42,7 +42,7 @@
 // Enable host stack. The USB transport follows the board's force-included
 // cflags header: HAS_USBPIO selects Pico-PIO-USB (Fruit Jam, Feather RP2350,
 // pizeroliupcb), otherwise the RP2350's native USB controller is the host port
-// (adafruitdvisd, murmulatorm2, olimexpicopc). This header reaches every TU — including
+// (adafruitdvisd, murmulatorm2, olimexpicopc, picocomputer3). This header reaches every TU — including
 // tinyusb's — so hcd_rp2040.c / hcd_pio_usb.c select themselves off this.
 #define CFG_TUH_ENABLED     1
 #ifdef HAS_USBPIO
