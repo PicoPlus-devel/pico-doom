@@ -449,6 +449,11 @@ running those two scripts locally *is* testing the pipeline.
 ./release-notes.sh v1.0          # writes release-notes.md, the release body
 ```
 
+`release-notes.sh` joins the wrapped lines of each paragraph and list item
+(`.github/scripts/unwrap_markdown.py`, as in pico-bootLoader): GitHub shows release
+notes like a comment, where every line break stays a break. `CHANGELOG.md` stays
+wrapped.
+
 `buildAll.sh` builds the standalone and SD-card variant for all seven boards,
 converts `doom1.whx` at the standalone flash offset, and copies the prebuilt
 `whd_gen` binaries in — 18 files in all. The workflow then downloads the Gerber
