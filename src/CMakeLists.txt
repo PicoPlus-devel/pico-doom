@@ -498,6 +498,19 @@ function(add_doom_tiny SUFFIX RENDER_LIB)
         # -DDOOM_RELEASE_VERSION (default "dev" for a local build).
         pico_set_program_version(doom_tiny${SUFFIX} "${DOOM_RELEASE_VERSION}")
         pico_add_extra_outputs(doom_tiny${SUFFIX})
+        # Pico SDK 2.3 adds two small SRAM users that this port does not need;
+        # both options are unknown to, and ignored by, older SDKs.
+        #   PICO_THREAD_LOCAL_CORE1_REINITIALIZE=0: no __thread / thread_local
+        #     variables exist here, so core 1 needs no TLS block of its own
+        #     (saves 8 bytes on Arm).
+        #   PICO_SYNC_EXCLUSIVE_ACCESS_EVENT_WORKAROUND=0: RP2350 mutex waits keep
+        #     spinning as with SDK 2.2 instead of sleeping in __wfe; this only
+        #     affects power use, and the workaround's RAM code costs 28 (Arm) /
+        #     72 (RISC-V) bytes.
+        target_compile_definitions(doom_tiny${SUFFIX} PRIVATE
+            PICO_THREAD_LOCAL_CORE1_REINITIALIZE=0
+            PICO_SYNC_EXCLUSIVE_ACCESS_EVENT_WORKAROUND=0
+        )
     endif()
 
     target_compile_options(doom_tiny${SUFFIX} PRIVATE

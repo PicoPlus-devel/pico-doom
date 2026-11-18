@@ -45,6 +45,26 @@ set(DOOM_FLASH_TOTAL  "0x1000000"  CACHE STRING "Total external flash on the boa
 # chip so hard_assert in flash_range_erase / flash_range_program can't panic
 # on a board header that lies about capacity.
 function(_doom_relink_flash TARGET ORIGIN LENGTH)
+    # Pico SDK >= 2.3.0 assembles its linker script from small include files,
+    # no longer ships an RP2350 memmap_default.ld to copy, and takes the FLASH
+    # region from pico_flash_region.ld. Supply our own copy of only that file,
+    # ahead of the SDK's in the linker search path, and leave the rest of the
+    # SDK script as it is (as pico_shared/BootPartition.cmake does).
+    if(COMMAND pico_add_linker_script_override_path)
+        # A directory of its own: SDK 2.2.0 and older write a pico_flash_region.ld
+        # into the build root, and ld also searches the current directory.
+        set(_ld_dir "${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_doom_ld")
+        file(WRITE "${_ld_dir}/pico_flash_region.ld"
+             "FLASH(rx) : ORIGIN = ${ORIGIN}, LENGTH = ${LENGTH}\n")
+        pico_add_linker_script_override_path(${TARGET} "${_ld_dir}" FILES pico_flash_region.ld)
+        message(STATUS "BootPartition: ${TARGET} -> ORIGIN=${ORIGIN} LENGTH=${LENGTH} (${_ld_dir}/pico_flash_region.ld)")
+        target_compile_definitions(${TARGET} PRIVATE
+            PICO_FLASH_SIZE_BYTES=${DOOM_FLASH_TOTAL})
+        # No PICOTOOL_EXTRA_UF2_ARGS: SDK >= 2.3.0 passes --platform itself,
+        # taken from PICO_PLATFORM, and picotool rejects a second --platform.
+        return()
+    endif()
+
     set(_candidates
         "${PICO_SDK_PATH}/src/rp2_common/pico_crt0/rp2350/memmap_default.ld"
         "${PICO_SDK_PATH}/src/rp2_common/pico_standard_link/memmap_default.ld"
