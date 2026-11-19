@@ -22,6 +22,9 @@
 
 #include <stdlib.h>
 #include "d_event.h"
+#if BUILD_FOR_BOOTLOADER
+#include "doom_boot.h"
+#endif
 
 #if !DOOM_SMALL
 #define MAXEVENTS 64
@@ -39,6 +42,13 @@ static int eventtail;
 //
 void D_PostEvent (event_t* ev)
 {
+#if BUILD_FOR_BOOTLOADER
+    // pico-bootLoader attract mode: a key, a button or a mouse button means a
+    // player is there. Releases and stick or mouse movement alone do not.
+    if (ev->type == ev_keydown ||
+        ((ev->type == ev_joystick || ev->type == ev_mouse) && ev->data1 != 0))
+        doom_attract_input();
+#endif
     events[eventhead] = *ev;
     eventhead = (eventhead + 1) % MAXEVENTS;
 }

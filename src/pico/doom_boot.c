@@ -24,6 +24,7 @@
 #include "pico/stdio.h"
 #include "pico/bootrom.h"
 #include "hardware/watchdog.h"
+#include "pico/time.h"
 #include "doom_wiipad.h"
 #endif
 
@@ -69,6 +70,80 @@ bool doom_launched_from_bootloader(void)
     return false;
 #endif
 }
+
+#if BUILD_FOR_BOOTLOADER
+// pico-bootLoader attract mode. Local copy of the contract in
+// pico_shared/attract.h (same reason as above): when the loader starts Doom for
+// its attract mode, scratch[7] holds LOADER_ATTRACT_MAGIC with the game time in
+// minutes in the low byte. The first input clears it and Doom is the player's;
+// otherwise, once the time is up, Doom resets with scratch[7] left as it is and
+// the loader goes on to its next application.
+#define LOADER_ATTRACT_MAGIC      0xB007A000u
+#define LOADER_ATTRACT_MAGIC_MASK 0xFFFFF000u
+#define LOADER_ATTRACT_MINUTES    0x000000FFu
+
+#if PICO_ON_DEVICE
+#include "pico/binary_info.h"
+// The loader picks Doom for attract mode only when this is in the image and the
+// game data is on the card. doom_tiny's WAD is a companion .uf2 the loader
+// checks itself; doom_tiny_full reads the WHD from the card into PSRAM, so it
+// also asks for a board with PSRAM ("@psram").
+#if WHD_LOAD_FROM_SD
+bi_decl(bi_program_feature("attract:@psram|/roms/doom/doom.whd"));
+#else
+bi_decl(bi_program_feature("attract:"));
+#endif
+#endif
+
+bool doom_attract_active(void)
+{
+#if PICO_ON_DEVICE
+    const uint32_t w = watchdog_hw->scratch[LOADER_RETURN_SCRATCH];
+    return doom_launched_from_bootloader() &&
+           (w & LOADER_ATTRACT_MAGIC_MASK) == LOADER_ATTRACT_MAGIC &&
+           (w & LOADER_ATTRACT_MINUTES) != 0;
+#else
+    return false;
+#endif
+}
+
+void doom_attract_input(void)
+{
+#if PICO_ON_DEVICE
+    if (!doom_attract_active())
+        return;
+    watchdog_hw->scratch[LOADER_RETURN_SCRATCH] = 0;
+    printf("doom: attract mode: a player took over\n");
+#endif
+}
+
+void doom_attract_tick(void)
+{
+#if PICO_ON_DEVICE
+    if (!doom_attract_active())
+        return;
+    const uint32_t minutes = watchdog_hw->scratch[LOADER_RETURN_SCRATCH] & LOADER_ATTRACT_MINUTES;
+    if (time_us_64() < (uint64_t)minutes * 60u * 1000000u)
+        return;
+    printf("\ndoom: attract mode: time is up, back to the bootloader\n");
+    doom_attract_hand_back();
+#endif
+}
+
+void doom_attract_hand_back(void)
+{
+#if PICO_ON_DEVICE
+    stdio_flush();
+    // As doom_reboot_to_loader(), but scratch[7] keeps the attract word, so the
+    // loader goes on to its next application.
+    doom_wiipad_shutdown();
+    watchdog_reboot(0, 0, 1);
+#endif
+    for (;;) {
+        tight_loop_contents();
+    }
+}
+#endif
 
 void __attribute__((noreturn)) doom_reboot_to_loader(void)
 {

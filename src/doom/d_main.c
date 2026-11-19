@@ -76,6 +76,9 @@
 
 #if PICO_DOOM
 #include "picodoom.h"
+#if BUILD_FOR_BOOTLOADER
+#include "doom_boot.h"
+#endif
 #endif
 #if PICO_ON_DEVICE
 #include "doom_settings.h"
@@ -470,6 +473,10 @@ boolean D_GrabMouseCallback(void)
 //
 void D_RunFrame()
 {
+#if BUILD_FOR_BOOTLOADER
+    // pico-bootLoader attract mode: back to the loader once the time is up
+    doom_attract_tick();
+#endif
 #if !DOOM_TINY
     int nowtime;
     int tics;

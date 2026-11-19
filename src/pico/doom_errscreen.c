@@ -37,6 +37,7 @@
 #include "i_video.h"
 
 #include "doom_errscreen.h"
+#include "doom_boot.h"
 
 // VGA attribute byte: high nibble background, low nibble foreground, indexing
 // the ega_colors[] table in i_video.c.
@@ -143,6 +144,15 @@ void doom_error_screen(const char *heading, const char *fmt, ...)
         // the page we just composed, so behave as before.
         panic("%s: %s", heading, body);
     }
+#if defined(BUILD_FOR_BOOTLOADER) && BUILD_FOR_BOOTLOADER
+    // Started by the loader's attract mode: nobody is there to press RESET.
+    // Show the error for a few seconds, then let the loader go on.
+    if (doom_attract_active()) {
+        busy_wait_ms(5000);
+        printf("doom: attract mode: error, back to the bootloader\n");
+        doom_attract_hand_back();
+    }
+#endif
     while (true) {
         tight_loop_contents();
     }
