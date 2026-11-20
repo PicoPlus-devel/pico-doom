@@ -31,6 +31,19 @@ extern "C" {
 // the right thing either way.
 bool doom_launched_from_bootloader(void);
 
+#if defined(BUILD_FOR_BOOTLOADER) && BUILD_FOR_BOOTLOADER
+// pico-bootLoader attract mode (doom_boot.c): the loader started Doom to show
+// it off. The demo loop runs; a key, button or mouse button hands Doom to the
+// player (doom_attract_input, from D_PostEvent), and when nobody has done so
+// within the game time doom_attract_tick (from D_RunFrame) returns to the loader,
+// which starts its next application.
+bool doom_attract_active(void);
+void doom_attract_input(void);
+void doom_attract_tick(void);
+// Back to the loader for its next application, attract word kept. Never returns.
+void __attribute__((noreturn)) doom_attract_hand_back(void);
+#endif
+
 // End the program: return to the pico-bootLoader picker if we were launched
 // from it, otherwise just reset (which restarts Doom). Never returns.
 void __attribute__((noreturn)) doom_reboot_to_loader(void);
