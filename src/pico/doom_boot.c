@@ -87,11 +87,12 @@ bool doom_launched_from_bootloader(void)
 // The loader picks Doom for attract mode only when this is in the image and the
 // game data is on the card. doom_tiny's WAD is a companion .uf2 the loader
 // checks itself; doom_tiny_full reads the WHD from the card into PSRAM, so it
-// also asks for a board with PSRAM ("@psram").
+// also asks for a board with PSRAM ("@psram"). Both show the same demo, so
+// doom_tiny steps aside where doom_tiny_full takes part ("@unless=").
 #if WHD_LOAD_FROM_SD
 bi_decl(bi_program_feature("attract:@psram|/roms/doom/doom.whd"));
 #else
-bi_decl(bi_program_feature("attract:"));
+bi_decl(bi_program_feature("attract:@unless=doom_tiny_full"));
 #endif
 #endif
 
